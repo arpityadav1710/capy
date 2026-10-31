@@ -45,6 +45,25 @@ GitHub builds the iPhone app for free on its Mac computers.
    - Your laptop needs to be on the same Wi-Fi with AltServer running.
 3. Open Capy, tap **Tell Capy an expense**, and allow the microphone and speech recognition.
 
+## 4b. If AltServer says "A Mac … is required" (-23782): use iPASide instead
+
+Apple changed its sign-in rules in October 2026 and AltServer for Windows can't sign in until it's updated.
+[iPASide](https://github.com/pwnapplehat/iPASide) is a free, open-source alternative that works with the new rules.
+Don't keep retrying AltServer: repeated failed sign-ins can make Apple lock the account.
+
+1. **Use a spare Apple ID** (recommended by iPASide). Make one at https://account.apple.com. Your iPhone stays signed in to your normal account.
+2. **Download** `iPASide-Setup-1.2.14-x64.exe` from https://github.com/pwnapplehat/iPASide/releases/latest (also download `SHA256SUMS.txt`).
+3. **Check the file** in PowerShell (in your Downloads folder): `Get-FileHash .\iPASide-Setup-1.2.14-x64.exe`. The hash must match the line in `SHA256SUMS.txt`.
+4. **Install it.** Windows shows "Windows protected your PC" because the installer isn't signed: click **More info → Run anyway**. It installs just for you, no admin needed.
+5. **Sign in** with the spare Apple ID and type the code Apple sends.
+6. **Plug in your iPhone**, unlock it and tap **Trust**.
+7. Go to **Sideload**, drag `Capy.ipa` onto the window, and press **Sideload to iPhone**.
+8. On the iPhone: **Settings → General → VPN & Device Management** → tap the spare Apple ID → **Trust**.
+   If Capy says Developer Mode is needed: **Settings → Privacy & Security → Developer Mode** → on (the phone restarts).
+9. In iPASide's **Settings**, turn on **background refresh**. A daily Windows task re-signs Capy before its 7 days run out; iPASide doesn't need to stay open.
+
+Always refresh with the same Apple ID that installed Capy, or the phone won't accept the update.
+
 ## 5. Make Back Tap and Siri open Capy
 
 1. Open the **Shortcuts** app → **+** → **Add Action** → search for **Open URLs**.

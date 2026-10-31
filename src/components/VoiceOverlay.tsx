@@ -2,12 +2,12 @@
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { speech, useSpeechEvent } from '../speech';
 import { addExpense } from '../storage';
 import { CATEGORIES, type Category, formatINR, parseExpense } from '../parser';
 import { colors, curves } from '../theme';
@@ -65,7 +65,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
       active.current = false;
       timers.current.forEach(clearTimeout);
       if (silenceTimer.current) clearTimeout(silenceTimer.current);
-      ExpoSpeechRecognitionModule.abort();
+      speech?.abort();
     };
   }, []);
 
@@ -89,13 +89,17 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     setMood('calm');
     setPhase('listening');
 
-    const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!speech) {
+      showProblem('Voice needs the full Capy app', "This preview (Expo Go) can't listen. Type the expense instead.");
+      return;
+    }
+    const perm = await speech.requestPermissionsAsync();
     if (!active.current) return;
     if (!perm.granted) {
       showProblem('Capy needs your microphone', 'Allow microphone and speech recognition for Capy in Settings.', true);
       return;
     }
-    ExpoSpeechRecognitionModule.start({
+    speech.start({
       lang: 'en-IN',
       interimResults: true,
       // Keep listening through pauses; Capy decides when you're done (see waitForPause).
@@ -129,7 +133,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     if (finished.current) return;
     finished.current = true;
     if (silenceTimer.current) clearTimeout(silenceTimer.current);
-    ExpoSpeechRecognitionModule.stop();
+    speech?.stop();
     setLevel(0);
 
     if (!text.trim()) {
@@ -158,7 +162,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     });
   }
 
-  useSpeechRecognitionEvent('result', (e) => {
+  useSpeechEvent('result', (e) => {
     if (!active.current || finished.current) return;
     const segment = (e.results[0]?.transcript ?? '').trim();
     // If the recogniser quietly started a new segment after a pause, keep what came before.
@@ -173,14 +177,14 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     waitForPause();
   });
 
-  useSpeechRecognitionEvent('volumechange', (e) => {
+  useSpeechEvent('volumechange', (e) => {
     if (!active.current || finished.current) return;
     setLevel(Math.max(0, Math.min(1, e.value / 8)));
     // Still talking (words can lag behind the voice), so don't end on a pause yet.
     if (e.value > SPEAKING_VOLUME && latest.current) waitForPause();
   });
 
-  useSpeechRecognitionEvent('error', (e) => {
+  useSpeechEvent('error', (e) => {
     if (!active.current || finished.current || e.error === 'aborted') return;
     if (e.error === 'no-speech') return finish(latest.current);
     finished.current = true;
@@ -196,14 +200,14 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     }
   });
 
-  useSpeechRecognitionEvent('end', () => {
+  useSpeechEvent('end', () => {
     if (!active.current || finished.current) return;
     finish(latest.current);
   });
 
   function close(delay = 0, after?: () => void) {
     active.current = false;
-    ExpoSpeechRecognitionModule.abort();
+    speech?.abort();
     later(delay, () => {
       Animated.timing(enter, { toValue: 0, duration: 240, easing: Easing.bezier(...curves.out), useNativeDriver: false }).start(() => {
         onClose();
