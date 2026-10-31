@@ -1,12 +1,19 @@
 {
-  "name": "capy-tmp",
+  "name": "capy",
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
     "expo": "~58.0.22",
+    "expo-blur": "~58.0.5",
+    "expo-haptics": "~58.0.7",
+    "expo-linking": "~58.0.15",
+    "expo-speech-recognition": "^58.0.1",
+    "expo-sqlite": "~58.0.15",
     "expo-status-bar": "~58.0.4",
     "react": "19.3.0",
-    "react-native": "0.88.1"
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-svg": "15.16.0"
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
@@ -16,7 +23,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test:parser": "node scripts/test-parser.ts"
   },
   "private": true
 }

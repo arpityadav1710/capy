@@ -1,0 +1,65 @@
+# Builds an unsigned Capy.ipa on GitHub's free Mac machines.
+# AltStore/Sideloadly then signs it with your free Apple ID when installing it on your iPhone.
+name: Build iPhone app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'design/**'
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Check the expense parser
+        run: npm run test:parser
+
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install iOS libraries
+        working-directory: ios
+        run: pod install
+
+      - name: Build the app (no signing)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/Capy.xcworkspace \
+            -scheme Capy \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 80
+
+      - name: Package Capy.ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Capy.app Payload/
+          zip -qry Capy.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Capy-ipa
+          path: Capy.ipa
+          retention-days: 14

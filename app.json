@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "capy-tmp",
-    "slug": "capy-tmp",
+    "name": "Capy",
+    "slug": "capy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.arpit.capy"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,6 +21,17 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Capy listens when you tell it about an expense.",
+          "speechRecognitionPermission": "Capy turns what you say into an expense entry."
+        }
+      ]
+    ],
+    "scheme": "capy"
   }
 }
