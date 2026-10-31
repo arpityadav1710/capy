@@ -1,144 +1,171 @@
-// Capy's home: today's spend, streak, this week by category, and recent expenses.
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+// Capy's home: today's spend, Capy filling with colour, quick-add bar and the daily check-in.
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 
-import { deleteExpense, type Expense, getOverview } from '../db';
-import { formatINR } from '../parser';
+import { CATEGORY_STYLE } from '../categories';
+import { CATEGORIES, type Category, formatINR } from '../parser';
+import { type Band } from '../stats';
 import { colors } from '../theme';
-import { CapyBadge } from './CapyFace';
+import { type BodyMood, CapyBody } from './CapyBody';
+import { Pill, RoundButton, Text } from './ui';
 
-type Props = { expenses: Expense[]; onTalk: () => void; onChanged: () => void };
+type Props = {
+  today: number;
+  bands: Band[];
+  budget: number | null;
+  streak: number;
+  /** Logged or checked in today. */
+  activeToday: boolean;
+  checkedInToday: boolean;
+  onTalk: () => void;
+  onQuickAdd: (c: Category) => void;
+  onCheckIn: () => void;
+  onOpenSummary: () => void;
+  onOpenToday: () => void;
+  onEditBudget: () => void;
+};
 
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-function when(t: number) {
-  const d = new Date(t);
-  const today = new Date();
-  const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-  if (d.toDateString() === today.toDateString()) return time;
-  return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${time}`;
-}
-
-export function HomeScreen({ expenses, onTalk, onChanged }: Props) {
+export function HomeScreen(p: Props) {
   const insets = useSafeAreaInsets();
-  const o = getOverview(expenses);
-  const maxCat = Math.max(1, ...o.weekByCategory.map((c) => c.total));
+  const [bodyBox, setBodyBox] = useState({ w: 0, h: 0 });
 
-  function confirmDelete(e: Expense) {
-    Alert.alert('Delete this expense?', `${formatINR(e.amount)} · ${e.note || e.category}`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteExpense(e.id);
-          onChanged();
-        },
-      },
-    ]);
+  const ratio = p.budget ? p.today / p.budget : 0;
+  const mood: BodyMood = p.checkedInToday ? 'happy' : ratio >= 0.9 ? 'worried' : 'calm';
+  const bodyWidth = Math.min(bodyBox.w * 0.78, (bodyBox.h * 300) / 340);
+
+  let subline = 'Tap to set a daily budget';
+  if (p.budget) {
+    subline =
+      p.today > p.budget
+        ? `${formatINR(p.today - p.budget)} over your ${formatINR(p.budget)} budget`
+        : `${Math.round(ratio * 100)}% of your ${formatINR(p.budget)} budget`;
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.page }}
-      contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 40, paddingHorizontal: 18 }}
-    >
-      <View style={styles.header}>
-        <CapyBadge size={52} />
-        <View>
-          <Text style={styles.muted}>{greeting()}</Text>
-          <Text style={styles.title}>Capy</Text>
-        </View>
+    <View style={[styles.page, { paddingTop: insets.top + 6 }]}>
+      <View style={styles.topRow}>
+        <StreakBadge streak={p.streak} done={p.activeToday} onPress={p.onOpenSummary} />
+        <RoundButton icon="chart-bar" onPress={p.onOpenSummary} label="Open summary" />
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.muted}>Spent today</Text>
-        <Text style={styles.big}>{formatINR(o.today)}</Text>
-        <Text style={styles.muted}>
-          {o.streak > 0 ? `${o.streak} day streak · ` : ''}
-          {formatINR(o.week)} this week
+      <Pressable onPress={p.onOpenToday} style={styles.hero}>
+        <Text style={styles.big}>{formatINR(p.today)}</Text>
+      </Pressable>
+      <Pressable onPress={p.onEditBudget} hitSlop={8}>
+        <Text style={[styles.sub, !!p.budget && p.today > p.budget && { color: '#B3473E' }]}>
+          Spent today · {subline}
         </Text>
-      </View>
-
-      <Pressable onPress={onTalk} style={({ pressed }) => [styles.talk, pressed && { opacity: 0.85 }]}>
-        <Text style={styles.talkText}>Tell Capy an expense</Text>
       </Pressable>
 
-      {o.weekByCategory.length > 0 && (
-        <View style={styles.card}>
-          <Text style={styles.section}>This week</Text>
-          {o.weekByCategory.map((c) => (
-            <View key={c.category} style={{ marginTop: 10 }}>
-              <View style={styles.rowBetween}>
-                <Text style={styles.body}>{c.category}</Text>
-                <Text style={styles.body}>{formatINR(c.total)}</Text>
-              </View>
-              <View style={styles.barTrack}>
-                <View style={[styles.bar, { width: `${(c.total / maxCat) * 100}%` }]} />
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.card}>
-        <Text style={styles.section}>Recent</Text>
-        {expenses.length === 0 ? (
-          <Text style={[styles.muted, { marginTop: 8, lineHeight: 20 }]}>
-            Double-tap the back of your phone, or tap the button above, and tell Capy what you spent. Like "chai with
-            Rohit 40".
-          </Text>
-        ) : (
-          expenses.slice(0, 30).map((e, i) => (
-            <Pressable
-              key={e.id}
-              onLongPress={() => confirmDelete(e)}
-              style={[styles.rowBetween, styles.item, i === 0 && { borderTopWidth: 0 }]}
-            >
-              <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.body} numberOfLines={1}>
-                  {e.note || e.category}
-                </Text>
-                <Text style={styles.small}>
-                  {e.category} · {when(e.createdAt)}
-                </Text>
-              </View>
-              <Text style={styles.amount}>{formatINR(e.amount)}</Text>
-            </Pressable>
-          ))
-        )}
-        {expenses.length > 0 && <Text style={[styles.small, { marginTop: 10 }]}>Press and hold an expense to delete it.</Text>}
+      <View style={styles.bodyArea} onLayout={(e) => setBodyBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+        {bodyWidth > 0 && <CapyBody bands={p.bands} capacity={p.budget ?? 1000} mood={mood} width={bodyWidth} />}
       </View>
-    </ScrollView>
+
+      <Pill label="Tell Capy" icon="microphone" onPress={p.onTalk} style={styles.talk} />
+
+      <View style={styles.bar}>
+        {CATEGORIES.map((c) => (
+          <QuickAdd key={c} category={c} onPress={() => p.onQuickAdd(c)} />
+        ))}
+      </View>
+
+      <Pressable
+        onPress={p.checkedInToday ? undefined : p.onCheckIn}
+        style={({ pressed }) => [styles.checkin, { paddingBottom: insets.bottom + 14 }, pressed && !p.checkedInToday && { opacity: 0.9 }]}
+      >
+        <View style={styles.checkIcon}>
+          <MaterialCommunityIcons name={p.checkedInToday ? 'check' : 'weather-night'} size={18} color={colors.brown} />
+        </View>
+        <Text style={styles.checkText}>
+          {p.checkedInToday ? 'Checked in for today · see you tomorrow' : p.today > 0 ? "That's everything for today" : 'Nothing spent today'}
+        </Text>
+        {!p.checkedInToday && <MaterialCommunityIcons name="chevron-right" size={22} color={colors.brown} />}
+      </Pressable>
+    </View>
+  );
+}
+
+function StreakBadge({ streak, done, onPress }: { streak: number; done: boolean; onPress: () => void }) {
+  const r = 21;
+  const c = 2 * Math.PI * r;
+  return (
+    <Pressable onPress={onPress} accessibilityLabel={`${streak} day streak`} hitSlop={6}>
+      <Svg width={52} height={52}>
+        <Circle cx={26} cy={26} r={r} stroke={colors.chip} strokeWidth={5} fill="none" />
+        <Circle
+          cx={26}
+          cy={26}
+          r={r}
+          stroke={colors.furDeep}
+          strokeWidth={5}
+          fill="none"
+          strokeDasharray={`${c}`}
+          strokeDashoffset={done ? 0 : c * 0.75}
+          strokeLinecap="round"
+          transform="rotate(-90 26 26)"
+        />
+        <Circle cx={26} cy={26} r={16} fill={colors.brown} />
+      </Svg>
+      <Text style={styles.streakNum}>{streak}</Text>
+    </Pressable>
+  );
+}
+
+function QuickAdd({ category, onPress }: { category: Category; onPress: () => void }) {
+  const s = CATEGORY_STYLE[category];
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.qa, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityLabel={`Add ${category}`}>
+      <View style={[styles.qaCircle, { backgroundColor: s.soft }]}>
+        <MaterialCommunityIcons name={s.icon} size={24} color={s.color} />
+        <View style={[styles.qaPlus, { backgroundColor: s.color }]}>
+          <MaterialCommunityIcons name="plus" size={11} color="#fff" />
+        </View>
+      </View>
+      <Text style={styles.qaLabel} numberOfLines={1}>
+        {s.label.toUpperCase()}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  title: { fontSize: 22, fontWeight: '600', color: colors.text },
-  muted: { fontSize: 13, color: colors.muted },
-  small: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  body: { fontSize: 15, color: colors.text },
-  big: { fontSize: 38, fontWeight: '600', color: colors.text, marginVertical: 2 },
-  section: { fontSize: 16, fontWeight: '600', color: colors.text },
-  amount: { fontSize: 15, fontWeight: '600', color: colors.text },
-  card: { backgroundColor: colors.cream, borderRadius: 22, padding: 18, marginBottom: 14 },
-  talk: {
-    backgroundColor: colors.brown,
-    borderRadius: 20,
-    height: 58,
+  page: { flex: 1, backgroundColor: '#FFFDF9' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18 },
+  hero: { alignItems: 'center', marginTop: 4 },
+  big: { fontSize: 50, fontWeight: '800', color: colors.brown, letterSpacing: -1 },
+  sub: { fontSize: 14, color: colors.muted, textAlign: 'center', marginTop: 2, paddingHorizontal: 20 },
+  bodyArea: { flex: 1, alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  talk: { alignSelf: 'center', paddingHorizontal: 30, marginBottom: 16 },
+  bar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, marginBottom: 14 },
+  qa: { alignItems: 'center', width: '16.6%' },
+  qaCircle: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
+  qaPlus: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: '#FFFDF9',
   },
-  talkText: { color: '#fff', fontSize: 17, fontWeight: '600' },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  item: { paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: colors.chip, marginTop: 6, overflow: 'hidden' },
-  bar: { height: 8, borderRadius: 4, backgroundColor: colors.furDeep },
+  qaLabel: { fontSize: 10, fontWeight: '700', color: '#A3958A', marginTop: 6, letterSpacing: 0.3 },
+  checkin: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F6E9DA',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+  },
+  checkIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  checkText: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.brown },
+  streakNum: { position: 'absolute', width: 52, top: 15, textAlign: 'center', color: '#fff', fontWeight: '800', fontSize: 15 },
 });

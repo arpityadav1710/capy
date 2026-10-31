@@ -4,14 +4,15 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { addExpense } from '../db';
+import { addExpense } from '../storage';
 import { CATEGORIES, type Category, formatINR, parseExpense } from '../parser';
 import { colors } from '../theme';
 import { CapyFace, type CapyMood } from './CapyFace';
+import { Text } from './ui';
 
 type Phase = 'listening' | 'thinking' | 'review' | 'saved' | 'problem';
 type Draft = { amount: number; category: Category; note: string; spoken: string };

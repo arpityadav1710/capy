@@ -30,7 +30,14 @@
           "microphonePermission": "Capy listens when you tell it about an expense.",
           "speechRecognitionPermission": "Capy turns what you say into an expense entry."
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      "expo-font"
     ],
     "scheme": "capy"
   }
