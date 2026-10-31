@@ -9,6 +9,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { speech, useSpeechEvent } from '../speech';
 import { addExpense } from '../storage';
+import { getLearned, learn, speechHints } from '../learning';
 import { CATEGORIES, type Category, formatINR, parseExpense } from '../parser';
 import { colors, curves } from '../theme';
 import { CapyFace, type CapyMood } from './CapyFace';
@@ -29,8 +30,6 @@ const NOTHING_SAID_MS = 9000;
 const SPEAKING_VOLUME = 2;
 const DOTS = 13;
 
-// Helps the recogniser with words it might otherwise mishear.
-const HINTS = ['rupees', 'Swiggy', 'Zomato', 'Rapido', 'Uber', 'Ola', 'Blinkit', 'Zepto', 'chai', 'samosa', 'auto', 'metro'];
 
 type Props = { onClose: () => void; onSaved: () => void; onTypeInstead: () => void };
 
@@ -106,7 +105,9 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
       continuous: true,
       addsPunctuation: false,
       iosTaskHint: 'dictation',
-      contextualStrings: HINTS,
+      // Indian names and brands, plus words you've used before, so they aren't misheard.
+      contextualStrings: speechHints(),
+      maxAlternatives: 5,
       volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
     });
     waitForPause(NOTHING_SAID_MS);
@@ -116,7 +117,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
   function waitForPause(ms?: number) {
     if (silenceTimer.current) clearTimeout(silenceTimer.current);
     const text = latest.current;
-    const wait = ms ?? (parseExpense(text).amount != null ? PAUSE_WITH_AMOUNT_MS : PAUSE_WITHOUT_AMOUNT_MS);
+    const wait = ms ?? (parseExpense(text, getLearned()).amount != null ? PAUSE_WITH_AMOUNT_MS : PAUSE_WITHOUT_AMOUNT_MS);
     silenceTimer.current = setTimeout(() => finish(latest.current), wait);
   }
 
@@ -143,7 +144,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     setPhase('thinking');
     setMood('thinking');
     later(700, () => {
-      const parsed = parseExpense(text);
+      const parsed = parseExpense(text, getLearned());
       if (parsed.amount == null) {
         showProblem("Capy didn't catch an amount", `You said "${text}". Tap below and just say the amount, like "250".`, false, true);
         return;
@@ -164,7 +165,14 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
 
   useSpeechEvent('result', (e) => {
     if (!active.current || finished.current) return;
-    const segment = (e.results[0]?.transcript ?? '').trim();
+    // The recogniser offers several guesses; prefer one that makes sense as an expense.
+    const learned = getLearned();
+    const guesses = e.results.map((r) => (r.transcript ?? '').trim()).filter(Boolean);
+    const score = (g: string) => {
+      const p = parseExpense(join(committed.current, g), learned);
+      return (p.amount != null ? 2 : 0) + (p.category !== 'Other' ? 1 : 0);
+    };
+    const segment = guesses.reduce((best, g) => (score(g) > score(best) ? g : best), guesses[0] ?? '');
     // If the recogniser quietly started a new segment after a pause, keep what came before.
     const prev = lastSegment.current;
     if (prev && segment.length < prev.length / 2 && !prev.startsWith(segment)) committed.current = join(committed.current, prev);
@@ -219,6 +227,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
   function save() {
     if (!draft) return;
     addExpense(draft);
+    learn(draft.note, draft.category);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMood('happy');
     setPhase('saved');

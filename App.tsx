@@ -24,6 +24,7 @@ import { VoiceOverlay } from './src/components/VoiceOverlay';
 import type { Category } from './src/parser';
 import { askPermission, cancelReminders, onReminderTapped, scheduleReminders } from './src/reminders';
 import { activeDays, bandsFor, bestStreak, dayKey, expensesOn, startOfDay, streak, sum } from './src/stats';
+import { learn } from './src/learning';
 import * as store from './src/storage';
 
 // Opening capy://listen (from a Shortcut, Back Tap, Siri or a reminder) jumps straight to the voice overlay.
@@ -198,6 +199,7 @@ export default function App() {
           onClose={() => setEntry(null)}
           onSave={(e) => {
             store.addExpense(e);
+            if (e.note) learn(e.note, e.category);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setEntry(null);
             refresh();
