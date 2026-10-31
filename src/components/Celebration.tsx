@@ -8,7 +8,7 @@ import { CATEGORIES, formatINR } from '../parser';
 import { type Band, dayHeadline } from '../stats';
 import { colors, curves } from '../theme';
 import { useReducedMotion } from '../useReducedMotion';
-import { CapyBody } from './CapyBody';
+import { CapyRing } from './CapyRing';
 import { Pill, Text } from './ui';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -75,7 +75,7 @@ export function Celebration({ today, budget, bands, streak, onClose }: Props) {
       </Animated.View>
 
       <Animated.View style={[styles.body, enter(3)]} accessible accessibilityRole="image" accessibilityLabel="Capy is happy">
-        <CapyBody bands={bands} capacity={budget ?? 1000} mood="happy" width={Math.min(SW * 0.7, 300)} />
+        <CapyRing bands={bands} capacity={budget ?? 1000} expression="happy" size={Math.min(SW * 0.72, 300)} />
       </Animated.View>
 
       <Animated.View style={enter(4)}>

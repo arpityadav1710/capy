@@ -9,7 +9,7 @@ import { CATEGORY_STYLE } from '../categories';
 import { CATEGORIES, type Category, formatINR } from '../parser';
 import { type Band } from '../stats';
 import { colors } from '../theme';
-import { type BodyMood, CapyBody } from './CapyBody';
+import { CapyRing, EXPRESSION_WORDS, expressionFor } from './CapyRing';
 import { Pill, PressableScale, RoundButton, Text } from './ui';
 
 type Props = {
@@ -34,8 +34,9 @@ export function HomeScreen(p: Props) {
   const [bodyBox, setBodyBox] = useState({ w: 0, h: 0 });
 
   const ratio = p.budget ? p.today / p.budget : 0;
-  const mood: BodyMood = p.checkedInToday ? 'happy' : ratio >= 0.9 ? 'worried' : 'calm';
-  const bodyWidth = Math.min(bodyBox.w * 0.78, (bodyBox.h * 300) / 340);
+  const capacity = p.budget ?? 1000;
+  const expression = expressionFor(p.today / capacity, p.checkedInToday);
+  const ringSize = Math.min(bodyBox.w * 0.84, bodyBox.h);
 
   let subline = 'Tap to set a daily budget';
   if (p.budget) {
@@ -47,8 +48,8 @@ export function HomeScreen(p: Props) {
 
   const capyLabel =
     p.bands.length === 0
-      ? 'Capy is empty. Nothing spent yet today.'
-      : `Capy is filled with today's spending: ${p.bands.map((b) => `${CATEGORY_STYLE[b.category].label} ${formatINR(b.amount)}`).join(', ')}.`;
+      ? `Capy looks ${EXPRESSION_WORDS[expression]}. Nothing spent yet today.`
+      : `Capy looks ${EXPRESSION_WORDS[expression]}. Today's ring: ${p.bands.map((b) => `${CATEGORY_STYLE[b.category].label} ${formatINR(b.amount)}`).join(', ')}.`;
 
   return (
     <View style={[styles.page, { paddingTop: insets.top + 6 }]}>
@@ -75,9 +76,9 @@ export function HomeScreen(p: Props) {
       </Pressable>
 
       <View style={styles.bodyArea} onLayout={(e) => setBodyBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-        {bodyWidth > 0 && (
+        {ringSize > 0 && (
           <View accessible accessibilityRole="image" accessibilityLabel={capyLabel}>
-            <CapyBody bands={p.bands} capacity={p.budget ?? 1000} mood={mood} width={bodyWidth} />
+            <CapyRing bands={p.bands} capacity={capacity} expression={expression} size={ringSize} />
           </View>
         )}
       </View>
