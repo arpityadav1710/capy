@@ -12,14 +12,21 @@ import { addExpense } from '../storage';
 import { CATEGORIES, type Category, formatINR, parseExpense } from '../parser';
 import { colors, curves } from '../theme';
 import { CapyFace, type CapyMood } from './CapyFace';
-import { Text } from './ui';
+import { PressableScale, Text } from './ui';
 
 type Phase = 'listening' | 'thinking' | 'review' | 'saved' | 'problem';
 type Draft = { amount: number; category: Category; note: string; spoken: string };
 
 const AnimatedBlur = Animated.createAnimatedComponent(BlurView);
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get('window');
-const SILENCE_MS = 1600;
+// How long a pause ends listening: longer while no amount has been heard yet, so
+// "chai with Rohit... uh... two fifty" isn't cut off before the number.
+const PAUSE_WITH_AMOUNT_MS = 1800;
+const PAUSE_WITHOUT_AMOUNT_MS = 3500;
+// Give up if nothing at all is said for this long.
+const NOTHING_SAID_MS = 9000;
+// Loudness (0-10) above which we treat the mic as hearing speech, even before words arrive.
+const SPEAKING_VOLUME = 2;
 const DOTS = 13;
 
 // Helps the recogniser with words it might otherwise mishear.
@@ -32,11 +39,14 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
   const [phase, setPhase] = useState<Phase>('listening');
   const [transcript, setTranscript] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [problem, setProblem] = useState({ title: '', body: '', settings: false });
+  const [problem, setProblem] = useState({ title: '', body: '', settings: false, keepText: false });
   const [mood, setMood] = useState<CapyMood>('calm');
 
   const active = useRef(true);
   const latest = useRef('');
+  // Finished segments of speech; the recogniser may restart its transcript after each one.
+  const committed = useRef('');
+  const lastSegment = useRef('');
   const finished = useRef(false);
   const silenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -68,10 +78,13 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     }).start();
   }, [phase]);
 
-  async function startListening() {
+  async function startListening(keepText = false) {
     finished.current = false;
-    latest.current = '';
-    setTranscript('');
+    const kept = keepText ? latest.current : '';
+    latest.current = kept;
+    committed.current = kept;
+    lastSegment.current = '';
+    setTranscript(kept);
     setDraft(null);
     setMood('calm');
     setPhase('listening');
@@ -85,16 +98,29 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     ExpoSpeechRecognitionModule.start({
       lang: 'en-IN',
       interimResults: true,
-      continuous: false,
+      // Keep listening through pauses; Capy decides when you're done (see waitForPause).
+      continuous: true,
       addsPunctuation: false,
       iosTaskHint: 'dictation',
       contextualStrings: HINTS,
       volumeChangeEventOptions: { enabled: true, intervalMillis: 100 },
     });
+    waitForPause(NOTHING_SAID_MS);
   }
 
-  function showProblem(title: string, body: string, settings = false) {
-    setProblem({ title, body, settings });
+  /** (Re)starts the countdown that ends listening after a pause. */
+  function waitForPause(ms?: number) {
+    if (silenceTimer.current) clearTimeout(silenceTimer.current);
+    const text = latest.current;
+    const wait = ms ?? (parseExpense(text).amount != null ? PAUSE_WITH_AMOUNT_MS : PAUSE_WITHOUT_AMOUNT_MS);
+    silenceTimer.current = setTimeout(() => finish(latest.current), wait);
+  }
+
+  // iOS sends the whole sentence so far each time; other recognisers restart after each segment.
+  const join = (done: string, now: string) => (!done ? now : !now || now.startsWith(done) ? now || done : `${done} ${now}`);
+
+  function showProblem(title: string, body: string, settings = false, keepText = false) {
+    setProblem({ title, body, settings, keepText });
     setMood('meh');
     setPhase('problem');
   }
@@ -115,7 +141,7 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
     later(700, () => {
       const parsed = parseExpense(text);
       if (parsed.amount == null) {
-        showProblem("Capy didn't catch an amount", `You said "${text}". Try again with a number, like "auto 80".`);
+        showProblem("Capy didn't catch an amount", `You said "${text}". Tap below and just say the amount, like "250".`, false, true);
         return;
       }
       setDraft({ amount: parsed.amount, category: parsed.category, note: parsed.note, spoken: text });
@@ -134,20 +160,24 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
 
   useSpeechRecognitionEvent('result', (e) => {
     if (!active.current || finished.current) return;
-    const text = e.results[0]?.transcript ?? '';
+    const segment = (e.results[0]?.transcript ?? '').trim();
+    // If the recogniser quietly started a new segment after a pause, keep what came before.
+    const prev = lastSegment.current;
+    if (prev && segment.length < prev.length / 2 && !prev.startsWith(segment)) committed.current = join(committed.current, prev);
+    lastSegment.current = e.isFinal ? '' : segment;
+    const text = join(committed.current, segment);
+    if (e.isFinal) committed.current = text;
     latest.current = text;
     setTranscript(text);
-    if (silenceTimer.current) clearTimeout(silenceTimer.current);
-    if (e.isFinal) {
-      finish(text);
-    } else {
-      silenceTimer.current = setTimeout(() => finish(latest.current), SILENCE_MS);
-    }
+    // A final segment is only a pause, not the end: keep waiting for more.
+    waitForPause();
   });
 
   useSpeechRecognitionEvent('volumechange', (e) => {
     if (!active.current || finished.current) return;
     setLevel(Math.max(0, Math.min(1, e.value / 8)));
+    // Still talking (words can lag behind the voice), so don't end on a pause yet.
+    if (e.value > SPEAKING_VOLUME && latest.current) waitForPause();
   });
 
   useSpeechRecognitionEvent('error', (e) => {
@@ -248,6 +278,11 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
                 />
               ))}
             </View>
+            {phase === 'listening' && !!transcript && (
+              <PressableScale onPress={() => finish(latest.current)} style={styles.done} accessibilityRole="button" accessibilityHint="Stop listening and show the summary">
+                <Text style={styles.doneText}>Done</Text>
+              </PressableScale>
+            )}
           </>
         )}
 
@@ -307,8 +342,8 @@ export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
                       <Text style={styles.btnSolidText}>Open Settings</Text>
                     </Pressable>
                   ) : (
-                    <Pressable onPress={startListening} style={[styles.btn, styles.btnSolid]}>
-                      <Text style={styles.btnSolidText}>Try again</Text>
+                    <Pressable onPress={() => startListening(problem.keepText)} style={[styles.btn, styles.btnSolid]} accessibilityRole="button">
+                      <Text style={styles.btnSolidText}>{problem.keepText ? 'Say the amount' : 'Try again'}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -355,6 +390,8 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     backgroundColor: 'rgba(255,246,236,0.45)',
   },
+  done: { marginTop: 14, height: 44, paddingHorizontal: 28, borderRadius: 22, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  doneText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   dot: { width: 6, borderRadius: 3, backgroundColor: '#7a4e36' },
   card: { alignSelf: 'stretch', backgroundColor: 'rgba(255,250,244,0.97)', borderRadius: 26, padding: 20 },
   cardLabel: { fontSize: 13, color: colors.muted },
