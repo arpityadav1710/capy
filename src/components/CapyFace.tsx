@@ -5,6 +5,7 @@ import { Animated, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 
 import { colors } from '../theme';
+import { useReducedMotion } from '../useReducedMotion';
 
 export type CapyMood = 'calm' | 'thinking' | 'happy' | 'meh';
 
@@ -24,6 +25,7 @@ export function CapyFace({ mood, level, width }: Props) {
   const fallbackLevel = useRef(new Animated.Value(0)).current;
   const voice = level ?? fallbackLevel;
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const reduce = useReducedMotion();
 
   const eyeOpacity = useRef(
     Object.fromEntries(MOODS.map((m) => [m, new Animated.Value(m === mood ? 1 : 0)])) as Record<CapyMood, Animated.Value>,
@@ -39,6 +41,7 @@ export function CapyFace({ mood, level, width }: Props) {
       ),
     ).start();
 
+    if (reduce) return;
     if (mood === 'happy') {
       Animated.sequence([
         Animated.spring(pop, { toValue: 1.14, speed: 40, bounciness: 14, useNativeDriver: true }),
@@ -49,9 +52,11 @@ export function CapyFace({ mood, level, width }: Props) {
     } else {
       Animated.timing(pop, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     }
-  }, [mood]);
+  }, [mood, reduce]);
 
+  // Idle breathing and the thinking glance loop forever, so Reduce Motion turns them off.
   useEffect(() => {
+    if (reduce) return;
     const glance = Animated.loop(
       Animated.sequence([
         Animated.timing(look, { toValue: 1, duration: 450, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
@@ -71,7 +76,7 @@ export function CapyFace({ mood, level, width }: Props) {
       glance.stop();
       breath.stop();
     };
-  }, []);
+  }, [reduce]);
 
   const scale = Animated.multiply(pop, breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }));
   const cheekScale = voice.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22], extrapolate: 'clamp' });

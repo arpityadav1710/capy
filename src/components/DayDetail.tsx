@@ -52,20 +52,20 @@ export function DayDetail({ day, expenses, checkins, budget, onDelete, onAddMiss
               {list.map((e, i) => {
                 const s = CATEGORY_STYLE[e.category];
                 return (
-                  <View key={e.id} style={[styles.row, i > 0 && styles.rowBorder]}>
+                  <View key={e.id} style={[styles.row, i > 0 && styles.rowBorder]} accessible={false}>
                     <View style={[styles.icon, { backgroundColor: s.soft }]}>
-                      <MaterialCommunityIcons name={s.icon} size={20} color={s.color} />
+                      <MaterialCommunityIcons name={s.icon} size={20} color={s.ink} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name} numberOfLines={1}>
                         {e.note || e.category}
                       </Text>
                       <Text style={styles.meta}>
-                        {e.category} · {time(e.createdAt)}
+                        {CATEGORY_STYLE[e.category].label} · {time(e.createdAt)}
                       </Text>
                     </View>
                     <Text style={styles.amount}>{formatINR(e.amount)}</Text>
-                    <Pressable onPress={() => setPending(e)} hitSlop={8} style={styles.minus} accessibilityLabel="Delete expense">
+                    <Pressable onPress={() => setPending(e)} hitSlop={8} style={styles.minus} accessibilityRole="button" accessibilityLabel={`Delete ${e.note || e.category}, ${formatINR(e.amount)}`}>
                       <MaterialCommunityIcons name="minus" size={16} color={colors.muted} />
                     </Pressable>
                   </View>

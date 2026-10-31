@@ -10,7 +10,7 @@ import { CATEGORIES, type Category, formatINR } from '../parser';
 import { type Band } from '../stats';
 import { colors } from '../theme';
 import { type BodyMood, CapyBody } from './CapyBody';
-import { Pill, RoundButton, Text } from './ui';
+import { Pill, PressableScale, RoundButton, Text } from './ui';
 
 type Props = {
   today: number;
@@ -44,6 +44,11 @@ export function HomeScreen(p: Props) {
         : `${Math.round(ratio * 100)}% of your ${formatINR(p.budget)} budget`;
   }
 
+  const capyLabel =
+    p.bands.length === 0
+      ? 'Capy is empty. Nothing spent yet today.'
+      : `Capy is filled with today's spending: ${p.bands.map((b) => `${CATEGORY_STYLE[b.category].label} ${formatINR(b.amount)}`).join(', ')}.`;
+
   return (
     <View style={[styles.page, { paddingTop: insets.top + 6 }]}>
       <View style={styles.topRow}>
@@ -51,17 +56,29 @@ export function HomeScreen(p: Props) {
         <RoundButton icon="chart-bar" onPress={p.onOpenSummary} label="Open summary" />
       </View>
 
-      <Pressable onPress={p.onOpenToday} style={styles.hero}>
-        <Text style={styles.big}>{formatINR(p.today)}</Text>
+      <Pressable
+        onPress={p.onOpenToday}
+        style={styles.hero}
+        accessibilityRole="button"
+        accessibilityLabel={`Spent today ${formatINR(p.today)}`}
+        accessibilityHint="Shows today's expenses"
+      >
+        <Text style={styles.big} maxFontSizeMultiplier={1.3}>
+          {formatINR(p.today)}
+        </Text>
       </Pressable>
-      <Pressable onPress={p.onEditBudget} hitSlop={8}>
-        <Text style={[styles.sub, !!p.budget && p.today > p.budget && { color: '#B3473E' }]}>
+      <Pressable onPress={p.onEditBudget} hitSlop={8} accessibilityRole="button" accessibilityHint="Sets your daily budget">
+        <Text maxFontSizeMultiplier={1.6} style={[styles.sub, !!p.budget && p.today > p.budget && { color: '#B3473E' }]}>
           Spent today · {subline}
         </Text>
       </Pressable>
 
       <View style={styles.bodyArea} onLayout={(e) => setBodyBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-        {bodyWidth > 0 && <CapyBody bands={p.bands} capacity={p.budget ?? 1000} mood={mood} width={bodyWidth} />}
+        {bodyWidth > 0 && (
+          <View accessible accessibilityRole="image" accessibilityLabel={capyLabel}>
+            <CapyBody bands={p.bands} capacity={p.budget ?? 1000} mood={mood} width={bodyWidth} />
+          </View>
+        )}
       </View>
 
       <Pill label="Tell Capy" icon="microphone" onPress={p.onTalk} style={styles.talk} />
@@ -72,9 +89,12 @@ export function HomeScreen(p: Props) {
         ))}
       </View>
 
-      <Pressable
+      <PressableScale
         onPress={p.checkedInToday ? undefined : p.onCheckIn}
-        style={({ pressed }) => [styles.checkin, { paddingBottom: insets.bottom + 14 }, pressed && !p.checkedInToday && { opacity: 0.9 }]}
+        scaleTo={p.checkedInToday ? 1 : 0.98}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: p.checkedInToday }}
+        style={[styles.checkin, { paddingBottom: insets.bottom + 14 }]}
       >
         <View style={styles.checkIcon}>
           <MaterialCommunityIcons name={p.checkedInToday ? 'check' : 'weather-night'} size={18} color={colors.brown} />
@@ -83,7 +103,7 @@ export function HomeScreen(p: Props) {
           {p.checkedInToday ? 'Checked in for today · see you tomorrow' : p.today > 0 ? "That's everything for today" : 'Nothing spent today'}
         </Text>
         {!p.checkedInToday && <MaterialCommunityIcons name="chevron-right" size={22} color={colors.brown} />}
-      </Pressable>
+      </PressableScale>
     </View>
   );
 }
@@ -92,7 +112,7 @@ function StreakBadge({ streak, done, onPress }: { streak: number; done: boolean;
   const r = 21;
   const c = 2 * Math.PI * r;
   return (
-    <Pressable onPress={onPress} accessibilityLabel={`${streak} day streak`} hitSlop={6}>
+    <PressableScale onPress={onPress} scaleTo={0.92} accessibilityRole="button" accessibilityLabel={`${streak} day streak`} accessibilityHint="Opens your summary" hitSlop={6}>
       <Svg width={52} height={52}>
         <Circle cx={26} cy={26} r={r} stroke={colors.chip} strokeWidth={5} fill="none" />
         <Circle
@@ -109,25 +129,27 @@ function StreakBadge({ streak, done, onPress }: { streak: number; done: boolean;
         />
         <Circle cx={26} cy={26} r={16} fill={colors.brown} />
       </Svg>
-      <Text style={styles.streakNum}>{streak}</Text>
-    </Pressable>
+      <Text style={styles.streakNum} maxFontSizeMultiplier={1}>
+        {streak}
+      </Text>
+    </PressableScale>
   );
 }
 
 function QuickAdd({ category, onPress }: { category: Category; onPress: () => void }) {
   const s = CATEGORY_STYLE[category];
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.qa, pressed && { transform: [{ scale: 0.94 }] }]} accessibilityLabel={`Add ${category}`}>
+    <PressableScale onPress={onPress} scaleTo={0.92} style={styles.qa} accessibilityRole="button" accessibilityLabel={`Add ${s.label} expense`}>
       <View style={[styles.qaCircle, { backgroundColor: s.soft }]}>
-        <MaterialCommunityIcons name={s.icon} size={24} color={s.color} />
-        <View style={[styles.qaPlus, { backgroundColor: s.color }]}>
+        <MaterialCommunityIcons name={s.icon} size={24} color={s.ink} />
+        <View style={[styles.qaPlus, { backgroundColor: s.ink }]}>
           <MaterialCommunityIcons name="plus" size={11} color="#fff" />
         </View>
       </View>
-      <Text style={styles.qaLabel} numberOfLines={1}>
+      <Text style={styles.qaLabel} numberOfLines={1} maxFontSizeMultiplier={1.2}>
         {s.label.toUpperCase()}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -154,7 +176,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFFDF9',
   },
-  qaLabel: { fontSize: 10, fontWeight: '700', color: '#A3958A', marginTop: 6, letterSpacing: 0.3 },
+  qaLabel: { fontSize: 11, fontWeight: '800', color: colors.muted, marginTop: 6, letterSpacing: 0.3 },
   checkin: {
     flexDirection: 'row',
     alignItems: 'center',

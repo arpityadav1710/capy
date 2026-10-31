@@ -26,3 +26,11 @@ export const fonts = {
   bold: 'Nunito_700Bold',
   heavy: 'Nunito_800ExtraBold',
 };
+
+// Motion curves (Emil Kowalski's design-engineering values). Never ease-in for UI.
+export const curves = {
+  /** Strong ease-out for things entering or responding to a tap. */
+  out: [0.23, 1, 0.32, 1] as const,
+  /** iOS-like sheet/drawer curve. */
+  drawer: [0.32, 0.72, 0, 1] as const,
+};

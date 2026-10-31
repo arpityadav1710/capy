@@ -6,6 +6,7 @@ import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, RadialGradient, Rect, St
 import { CATEGORY_STYLE } from '../categories';
 import type { Band } from '../stats';
 import { colors } from '../theme';
+import { useReducedMotion } from '../useReducedMotion';
 
 export type BodyMood = 'calm' | 'happy' | 'worried';
 
@@ -38,10 +39,11 @@ function Silhouette() {
 export function CapyBody({ bands, capacity, mood, width }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const pop = useRef(new Animated.Value(1)).current;
+  const reduce = useReducedMotion();
   const total = bands.reduce((s, b) => s + b.amount, 0);
 
   useEffect(() => {
-    if (total === 0) return;
+    if (total === 0 || reduce) return;
     Animated.sequence([
       Animated.spring(pop, { toValue: 1.06, speed: 40, bounciness: 12, useNativeDriver: true }),
       Animated.spring(pop, { toValue: 1, speed: 14, bounciness: 10, useNativeDriver: true }),
@@ -49,7 +51,7 @@ export function CapyBody({ bands, capacity, mood, width }: Props) {
   }, [total]);
 
   useEffect(() => {
-    if (mood !== 'happy') return;
+    if (mood !== 'happy' || reduce) return;
     Animated.sequence([
       Animated.spring(pop, { toValue: 1.12, speed: 40, bounciness: 16, useNativeDriver: true }),
       Animated.spring(pop, { toValue: 1, speed: 12, bounciness: 12, useNativeDriver: true }),

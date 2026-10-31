@@ -65,7 +65,13 @@ export function SummaryScreen(p: Props) {
         <View style={styles.card}>
           <View style={styles.segment}>
             {RANGES.map((r) => (
-              <Pressable key={r.key} onPress={() => setRange(r.key)} style={[styles.segItem, range === r.key && styles.segOn]}>
+              <Pressable
+                key={r.key}
+                onPress={() => setRange(r.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: range === r.key }}
+                style={[styles.segItem, range === r.key && styles.segOn]}
+              >
                 <Text style={[styles.segText, range === r.key && { color: colors.text }]}>{r.label}</Text>
               </Pressable>
             ))}
@@ -74,7 +80,12 @@ export function SummaryScreen(p: Props) {
 
           <View style={styles.chart}>
             {cols.map((c, i) => (
-              <View key={i} style={styles.col}>
+              <View
+                key={i}
+                style={styles.col}
+                accessible
+                accessibilityLabel={`${c.label}: ${c.total === 0 ? 'nothing spent' : `${formatINR(c.total)}, ${c.bands.map((b) => `${CATEGORY_STYLE[b.category].label} ${formatINR(b.amount)}`).join(', ')}`}`}
+              >
                 <Text style={[styles.colTotal, c.total === 0 && { opacity: 0 }]}>{short(c.total)}</Text>
                 <View style={[styles.stack, { height: Math.max(4, (c.total / max) * 150) }]}>
                   {c.total === 0 ? (
@@ -94,8 +105,8 @@ export function SummaryScreen(p: Props) {
             <View style={styles.legend}>
               {legend.map((l) => (
                 <View key={l.category} style={[styles.legendChip, { backgroundColor: CATEGORY_STYLE[l.category].soft }]}>
-                  <Text style={[styles.legendPct, { color: CATEGORY_STYLE[l.category].color }]}>{Math.round(l.share)}%</Text>
-                  <Text style={styles.legendName}>{l.category}</Text>
+                  <Text style={[styles.legendPct, { color: CATEGORY_STYLE[l.category].ink }]}>{Math.round(l.share)}%</Text>
+                  <Text style={styles.legendName}>{CATEGORY_STYLE[l.category].label}</Text>
                 </View>
               ))}
             </View>
@@ -114,7 +125,7 @@ function Kpi({ big, small, fill }: { big: string; small: string; fill: number })
   const r = 74;
   const c = 2 * Math.PI * r;
   return (
-    <View style={styles.kpi}>
+    <View style={styles.kpi} accessible accessibilityLabel={`${big} ${small.toLowerCase()}`}>
       <Svg width={170} height={170} style={StyleSheet.absoluteFill}>
         <Circle cx={85} cy={85} r={r} stroke={colors.chip} strokeWidth={9} fill="none" />
         <Circle
@@ -131,10 +142,12 @@ function Kpi({ big, small, fill }: { big: string; small: string; fill: number })
         />
         <Circle cx={85} cy={85} r={64} fill={colors.brown} />
       </Svg>
-      <Text style={styles.kpiBig} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={styles.kpiBig} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1}>
         {big}
       </Text>
-      <Text style={styles.kpiSmall}>{small}</Text>
+      <Text style={styles.kpiSmall} maxFontSizeMultiplier={1}>
+        {small}
+      </Text>
     </View>
   );
 }
@@ -188,7 +201,14 @@ function Calendar({
           const spent = spentDays.has(key);
           const noSpend = !spent && checkins.includes(key);
           return (
-            <Pressable key={i} style={styles.calCell} disabled={future} onPress={() => onOpenDay(t)}>
+            <Pressable
+              key={i}
+              style={styles.calCell}
+              disabled={future}
+              onPress={() => onOpenDay(t)}
+              accessibilityRole="button"
+              accessibilityLabel={`${MONTHS[month.getMonth()]} ${d}${spent ? ', spending logged' : noSpend ? ', checked in, nothing spent' : ''}`}
+            >
               <View style={[styles.calDay, key === todayKey && styles.calToday]}>
                 <Text style={[styles.calNum, future && { color: colors.line }, key === todayKey && { color: '#fff' }]}>{d}</Text>
               </View>

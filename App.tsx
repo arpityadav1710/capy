@@ -173,6 +173,7 @@ export default function App() {
             if (store.listExpenses().length > 0) maybeAskReminders();
           }}
           onSaved={refresh}
+          onTypeInstead={() => setEntry({ category: 'Food' })}
         />
       )}
 

@@ -12,14 +12,14 @@ export function RemindersIntro({ onAllow, onSkip }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[StyleSheet.absoluteFill, styles.page, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 20 }]}>
-      <Pressable onPress={onSkip} style={styles.skip} hitSlop={10}>
+      <Pressable onPress={onSkip} style={styles.skip} hitSlop={10} accessibilityRole="button" accessibilityLabel="Skip reminders">
         <Text style={styles.skipText}>SKIP</Text>
       </Pressable>
 
       <Text style={styles.title}>Gentle reminders</Text>
       <Text style={styles.body}>Capy nudges you after lunch and in the evening, so no expense slips by.</Text>
 
-      <View style={styles.card}>
+      <View style={styles.card} accessible accessibilityLabel="Example reminder: Anything spent today? Capy is waiting to hear.">
         <View style={styles.notif}>
           <View style={styles.notifIcon}>
             <CapyFace mood="calm" width={34} />
@@ -43,7 +43,7 @@ export function RemindersIntro({ onAllow, onSkip }: Props) {
 const styles = StyleSheet.create({
   page: { backgroundColor: '#FFFDF9' },
   skip: { alignSelf: 'flex-end', paddingHorizontal: 22, paddingVertical: 8 },
-  skipText: { fontSize: 14, fontWeight: '800', color: '#B9AA9C', letterSpacing: 0.5 },
+  skipText: { fontSize: 15, fontWeight: '800', color: colors.muted, letterSpacing: 0.5 },
   title: { fontSize: 34, fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 8 },
   body: { fontSize: 16, color: colors.muted, textAlign: 'center', marginTop: 8, paddingHorizontal: 36, lineHeight: 22 },
   card: { flex: 1, margin: 24, borderRadius: 32, backgroundColor: colors.fur, overflow: 'hidden' },

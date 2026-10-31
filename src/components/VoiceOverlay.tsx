@@ -4,13 +4,13 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { addExpense } from '../storage';
 import { CATEGORIES, type Category, formatINR, parseExpense } from '../parser';
-import { colors } from '../theme';
+import { colors, curves } from '../theme';
 import { CapyFace, type CapyMood } from './CapyFace';
 import { Text } from './ui';
 
@@ -25,9 +25,9 @@ const DOTS = 13;
 // Helps the recogniser with words it might otherwise mishear.
 const HINTS = ['rupees', 'Swiggy', 'Zomato', 'Rapido', 'Uber', 'Ola', 'Blinkit', 'Zepto', 'chai', 'samosa', 'auto', 'metro'];
 
-type Props = { onClose: () => void; onSaved: () => void };
+type Props = { onClose: () => void; onSaved: () => void; onTypeInstead: () => void };
 
-export function VoiceOverlay({ onClose, onSaved }: Props) {
+export function VoiceOverlay({ onClose, onSaved, onTypeInstead }: Props) {
   const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<Phase>('listening');
   const [transcript, setTranscript] = useState('');
@@ -49,7 +49,7 @@ export function VoiceOverlay({ onClose, onSaved }: Props) {
   const later = (ms: number, fn: () => void) => timers.current.push(setTimeout(fn, ms));
 
   useEffect(() => {
-    Animated.timing(enter, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    Animated.timing(enter, { toValue: 1, duration: 420, easing: Easing.bezier(...curves.drawer), useNativeDriver: false }).start();
     startListening();
     return () => {
       active.current = false;
@@ -154,7 +154,10 @@ export function VoiceOverlay({ onClose, onSaved }: Props) {
     if (!active.current || finished.current || e.error === 'aborted') return;
     if (e.error === 'no-speech') return finish(latest.current);
     finished.current = true;
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+    if (Platform.OS === 'web' && (e.error === 'network' || e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
+      // The browser preview can't reach a speech service or the microphone; the iPhone app uses Apple's recogniser.
+      showProblem('Voice works on your iPhone', "This browser preview can't listen. Type the expense instead, or open Capy in Chrome.");
+    } else if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
       showProblem('Capy needs your microphone', 'Allow microphone and speech recognition for Capy in Settings.', true);
     } else if (e.error === 'network') {
       showProblem('No internet for listening', 'Speech recognition needs a connection right now. Try again in a moment.');
@@ -168,11 +171,14 @@ export function VoiceOverlay({ onClose, onSaved }: Props) {
     finish(latest.current);
   });
 
-  function close(delay = 0) {
+  function close(delay = 0, after?: () => void) {
     active.current = false;
     ExpoSpeechRecognitionModule.abort();
     later(delay, () => {
-      Animated.timing(enter, { toValue: 0, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: false }).start(onClose);
+      Animated.timing(enter, { toValue: 0, duration: 240, easing: Easing.bezier(...curves.out), useNativeDriver: false }).start(() => {
+        onClose();
+        after?.();
+      });
     });
   }
 
@@ -293,8 +299,8 @@ export function VoiceOverlay({ onClose, onSaved }: Props) {
                 <Text style={styles.problemTitle}>{problem.title}</Text>
                 <Text style={styles.note}>{problem.body}</Text>
                 <View style={styles.buttons}>
-                  <Pressable onPress={() => close()} style={[styles.btn, styles.btnGhost]}>
-                    <Text style={styles.btnGhostText}>Close</Text>
+                  <Pressable onPress={() => close(0, onTypeInstead)} style={[styles.btn, styles.btnGhost]} accessibilityRole="button">
+                    <Text style={styles.btnGhostText}>Type instead</Text>
                   </Pressable>
                   {problem.settings ? (
                     <Pressable onPress={() => Linking.openSettings()} style={[styles.btn, styles.btnSolid]}>
