@@ -121,3 +121,30 @@ export function dayHeadline(now = Date.now(), overBudget = false): string {
   const day = new Date(now).getDay();
   return `${names[day][overBudget ? 1 : 0]}!`;
 }
+
+/** Longest run of consecutive active days ever. */
+export function bestStreak(active: Set<string>): number {
+  let best = 0;
+  for (const key of active) {
+    const [y, m, d] = key.split('-').map(Number);
+    const day = new Date(y, m - 1, d).getTime();
+    if (active.has(dayKey(prevDay(day)))) continue; // only count from the start of each run
+    let n = 0;
+    let t = day;
+    while (active.has(dayKey(t))) {
+      n++;
+      t = nextDay(t);
+    }
+    best = Math.max(best, n);
+  }
+  return best;
+}
+
+/** This week, Monday to Sunday, as day starts. */
+export function thisWeek(now = Date.now()): number[] {
+  let monday = startOfDay(now);
+  while (new Date(monday).getDay() !== 1) monday = prevDay(monday);
+  const days = [monday];
+  for (let i = 1; i < 7; i++) days.push(nextDay(days[i - 1]));
+  return days;
+}

@@ -18,11 +18,12 @@ import { Celebration } from './src/components/Celebration';
 import { DayDetail } from './src/components/DayDetail';
 import { HomeScreen } from './src/components/HomeScreen';
 import { RemindersIntro } from './src/components/RemindersIntro';
+import { StreakSheet } from './src/components/StreakSheet';
 import { SummaryScreen } from './src/components/SummaryScreen';
 import { VoiceOverlay } from './src/components/VoiceOverlay';
 import type { Category } from './src/parser';
 import { askPermission, cancelReminders, onReminderTapped, scheduleReminders } from './src/reminders';
-import { activeDays, bandsFor, dayKey, expensesOn, startOfDay, streak, sum } from './src/stats';
+import { activeDays, bandsFor, bestStreak, dayKey, expensesOn, startOfDay, streak, sum } from './src/stats';
 import * as store from './src/storage';
 
 // Opening capy://listen (from a Shortcut, Back Tap, Siri or a reminder) jumps straight to the voice overlay.
@@ -41,6 +42,7 @@ export default function App() {
   const [entry, setEntry] = useState<Entry | null>(null);
   const [editingBudget, setEditingBudget] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [streakOpen, setStreakOpen] = useState(false);
   const [openDay, setOpenDay] = useState<number | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [askReminders, setAskReminders] = useState(false);
@@ -101,9 +103,21 @@ export default function App() {
           setCelebrating(true);
         }}
         onOpenSummary={() => setSummaryOpen(true)}
+        onOpenStreak={() => setStreakOpen(true)}
         onOpenToday={() => setOpenDay(startOfDay(now))}
         onEditBudget={() => setEditingBudget(true)}
       />
+
+      {streakOpen && (
+        <StreakSheet
+          active={active}
+          streak={currentStreak}
+          best={bestStreak(active)}
+          checkedInToday={checkedInToday}
+          onOpenSummary={() => setSummaryOpen(true)}
+          onClose={() => setStreakOpen(false)}
+        />
+      )}
 
       {summaryOpen && (
         <SummaryScreen

@@ -24,6 +24,7 @@ type Props = {
   onQuickAdd: (c: Category) => void;
   onCheckIn: () => void;
   onOpenSummary: () => void;
+  onOpenStreak: () => void;
   onOpenToday: () => void;
   onEditBudget: () => void;
 };
@@ -52,7 +53,7 @@ export function HomeScreen(p: Props) {
   return (
     <View style={[styles.page, { paddingTop: insets.top + 6 }]}>
       <View style={styles.topRow}>
-        <StreakBadge streak={p.streak} done={p.activeToday} onPress={p.onOpenSummary} />
+        <StreakBadge streak={p.streak} done={p.activeToday} onPress={p.onOpenStreak} />
         <RoundButton icon="chart-bar" onPress={p.onOpenSummary} label="Open summary" />
       </View>
 
@@ -112,7 +113,7 @@ function StreakBadge({ streak, done, onPress }: { streak: number; done: boolean;
   const r = 21;
   const c = 2 * Math.PI * r;
   return (
-    <PressableScale onPress={onPress} scaleTo={0.92} accessibilityRole="button" accessibilityLabel={`${streak} day streak`} accessibilityHint="Opens your summary" hitSlop={6}>
+    <PressableScale onPress={onPress} scaleTo={0.92} accessibilityRole="button" accessibilityLabel={`${streak} day streak`} accessibilityHint="Shows this week and your best streak" hitSlop={6}>
       <Svg width={52} height={52}>
         <Circle cx={26} cy={26} r={r} stroke={colors.chip} strokeWidth={5} fill="none" />
         <Circle
