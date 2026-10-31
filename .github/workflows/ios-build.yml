@@ -15,13 +15,13 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -41,8 +41,9 @@ jobs:
 
       - name: Build the app (no signing)
         run: |
-          set -o pipefail
-          xcodebuild \
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios || true
+          if ! xcodebuild \
             -workspace ios/Capy.xcworkspace \
             -scheme Capy \
             -configuration Release \
@@ -50,7 +51,23 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build | tail -n 80
+            build > build.log 2>&1; then
+            # Surface the real errors on the run's summary page (logs need sign-in to read).
+            { grep -E "error:|BUILD FAILED" build.log; grep -A6 "The following build commands failed" build.log; } \
+              | sed 's/^[[:space:]]*//' | awk '!seen[$0]++' | head -n 10 \
+              | while IFS= read -r line; do echo "::error::${line//%/%25}"; done
+            tail -n 150 build.log
+            exit 1
+          fi
+          tail -n 20 build.log
+
+      - name: Keep the full build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
 
       - name: Package Capy.ipa
         run: |
