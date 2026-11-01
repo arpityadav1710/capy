@@ -27,9 +27,9 @@ export function expensesOn(expenses: Expense[], day: number): Expense[] {
 
 export const sum = (expenses: Expense[]) => expenses.reduce((s, e) => s + e.amount, 0);
 
-/** Days that count towards the streak: any day with an expense or a check-in. */
-export function activeDays(expenses: Expense[], checkins: string[]): Set<string> {
-  const days = new Set(checkins);
+/** Days that count towards the streak: any day with an expense, a check-in, or a Chill Day. */
+export function activeDays(expenses: Expense[], checkins: string[], chillUsed: string[] = []): Set<string> {
+  const days = new Set([...checkins, ...chillUsed]);
   for (const e of expenses) days.add(dayKey(e.createdAt));
   return days;
 }

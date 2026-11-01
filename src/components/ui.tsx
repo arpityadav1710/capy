@@ -106,18 +106,21 @@ export function Pill({
   icon,
   variant = 'dark',
   style,
+  textColor,
 }: {
   label: string;
   onPress: () => void;
   icon?: IconName;
   variant?: 'dark' | 'light';
   style?: ViewStyle;
+  textColor?: string;
 }) {
   const dark = variant === 'dark';
+  const ink = textColor ?? (dark ? '#fff' : colors.text);
   return (
     <PressableScale onPress={onPress} accessibilityRole="button" style={[styles.pill, dark ? styles.pillDark : styles.pillLight, style]}>
-      {icon && <MaterialCommunityIcons name={icon} size={20} color={dark ? '#fff' : colors.text} />}
-      <Text style={[styles.pillText, { color: dark ? '#fff' : colors.text }]} maxFontSizeMultiplier={1.4}>
+      {icon && <MaterialCommunityIcons name={icon} size={20} color={ink} />}
+      <Text style={[styles.pillText, { color: ink }]} maxFontSizeMultiplier={1.4}>
         {label}
       </Text>
     </PressableScale>

@@ -13,9 +13,9 @@ const LUNCH = [
   'Quick one: what did lunch cost?',
 ];
 const EVENING = [
-  'Anything spent today? Capy is waiting to hear.',
-  "Before bed: tell Capy today's spends and keep your streak.",
-  'One minute with Capy keeps your streak alive.',
+  "Capy's getting sleepy… anything to tell before bed? 🌙",
+  'Someone new might visit Capy tonight. Tuck Capy in to find out 🐥',
+  'Capy saved you a spot in the hot spring. Time to tuck in? ♨️',
 ];
 
 if (supported) {

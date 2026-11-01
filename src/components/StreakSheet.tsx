@@ -13,13 +13,17 @@ type Props = {
   best: number;
   checkedInToday: boolean;
   onOpenSummary: () => void;
+  chillDays: number;
+  found: number;
+  total: number;
+  onOpenAlbum: () => void;
   onClose: () => void;
 };
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const WEEKDAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export function StreakSheet({ active, streak, best, checkedInToday, onOpenSummary, onClose }: Props) {
+export function StreakSheet({ active, streak, best, checkedInToday, onOpenSummary, chillDays, found, total, onOpenAlbum, onClose }: Props) {
   const today = startOfDay(Date.now());
   const loggedToday = active.has(dayKey(today));
 
@@ -69,9 +73,13 @@ export function StreakSheet({ active, streak, best, checkedInToday, onOpenSummar
             <Stat label="Current streak" value={`${streak} ${streak === 1 ? 'day' : 'days'}`} />
             <View style={styles.divider} />
             <Stat label="Best streak" value={`${best} ${best === 1 ? 'day' : 'days'}`} />
+            <View style={styles.divider} />
+            <Stat label="Chill Days" value={`🍊 ${chillDays}`} />
           </View>
+          <Text style={styles.chillHint}>A Chill Day saves your streak if you forget a day. Earn one every 7 days.</Text>
 
-          <Pill label="See full summary" variant="light" icon="chart-bar" onPress={() => close(onOpenSummary)} />
+          <Pill label={`Friends of Capy · ${found} of ${total}`} icon="paw" onPress={() => close(onOpenAlbum)} />
+          <Pill label="See full summary" variant="light" icon="chart-bar" onPress={() => close(onOpenSummary)} style={{ marginTop: 10 }} />
         </>
       )}
     </BottomSheet>
@@ -99,7 +107,8 @@ const styles = StyleSheet.create({
   dotDone: { backgroundColor: colors.brown },
   dotToday: { borderWidth: 2, borderColor: colors.brown, backgroundColor: '#fff' },
   dotFuture: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.line, borderStyle: 'dashed' },
-  stats: { flexDirection: 'row', alignItems: 'center', marginVertical: 18 },
+  stats: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
+  chillHint: { fontSize: 13, color: colors.muted, textAlign: 'center', marginTop: 8, marginBottom: 16, lineHeight: 18 },
   divider: { width: 1, height: 36, backgroundColor: colors.line },
   statValue: { fontSize: 20, fontWeight: '800', color: colors.text },
   statLabel: { fontSize: 13, color: colors.muted, marginTop: 2 },

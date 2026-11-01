@@ -25,6 +25,11 @@ type Props = {
   onCheckIn: () => void;
   onOpenSummary: () => void;
   onOpenStreak: () => void;
+  /** Tonight's visitor sitting on Capy's head, once tucked in. */
+  visitor?: string;
+  /** A one-off message, e.g. a Chill Day saved your streak. */
+  notice?: string | null;
+  onDismissNotice: () => void;
   onOpenToday: () => void;
   onEditBudget: () => void;
 };
@@ -42,7 +47,7 @@ export function HomeScreen(p: Props) {
   if (p.budget) {
     subline =
       p.today > p.budget
-        ? `${formatINR(p.today - p.budget)} over your ${formatINR(p.budget)} budget`
+        ? `${formatINR(p.today - p.budget)} over today · tomorrow's a fresh start`
         : `${Math.round(ratio * 100)}% of your ${formatINR(p.budget)} budget`;
   }
 
@@ -53,6 +58,11 @@ export function HomeScreen(p: Props) {
 
   return (
     <View style={[styles.page, { paddingTop: insets.top + 6 }]}>
+      {!!p.notice && (
+        <Pressable onPress={p.onDismissNotice} style={styles.notice} accessibilityRole="button" accessibilityHint="Dismisses this message">
+          <Text style={styles.noticeText}>{p.notice}</Text>
+        </Pressable>
+      )}
       <View style={styles.topRow}>
         <StreakBadge streak={p.streak} done={p.activeToday} onPress={p.onOpenStreak} />
         <RoundButton icon="chart-bar" onPress={p.onOpenSummary} label="Open summary" />
@@ -70,7 +80,7 @@ export function HomeScreen(p: Props) {
         </Text>
       </Pressable>
       <Pressable onPress={p.onEditBudget} hitSlop={8} accessibilityRole="button" accessibilityHint="Sets your daily budget">
-        <Text maxFontSizeMultiplier={1.6} style={[styles.sub, !!p.budget && p.today > p.budget && { color: '#B3473E' }]}>
+        <Text maxFontSizeMultiplier={1.6} style={styles.sub}>
           Spent today · {subline}
         </Text>
       </Pressable>
@@ -78,7 +88,7 @@ export function HomeScreen(p: Props) {
       <View style={styles.bodyArea} onLayout={(e) => setBodyBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
         {ringSize > 0 && (
           <View accessible accessibilityRole="image" accessibilityLabel={capyLabel}>
-            <CapyRing bands={p.bands} capacity={capacity} expression={expression} size={ringSize} />
+            <CapyRing bands={p.bands} capacity={capacity} expression={expression} size={ringSize} visitor={p.visitor} />
           </View>
         )}
       </View>
@@ -99,10 +109,10 @@ export function HomeScreen(p: Props) {
         style={[styles.checkin, { paddingBottom: insets.bottom + 14 }]}
       >
         <View style={styles.checkIcon}>
-          <MaterialCommunityIcons name={p.checkedInToday ? 'check' : 'weather-night'} size={18} color={colors.brown} />
+          <MaterialCommunityIcons name={p.checkedInToday ? 'sleep' : 'weather-night'} size={18} color={colors.brown} />
         </View>
         <Text style={styles.checkText}>
-          {p.checkedInToday ? 'Checked in for today · see you tomorrow' : p.today > 0 ? "That's everything for today" : 'Nothing spent today'}
+          {p.checkedInToday ? 'Capy is asleep · see you tomorrow' : p.today > 0 ? 'Tuck Capy in for the night' : 'Nothing spent · tuck Capy in'}
         </Text>
         {!p.checkedInToday && <MaterialCommunityIcons name="chevron-right" size={22} color={colors.brown} />}
       </PressableScale>
@@ -157,6 +167,8 @@ function QuickAdd({ category, onPress }: { category: Category; onPress: () => vo
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#FFFDF9' },
+  notice: { alignSelf: 'center', backgroundColor: '#FBEBD2', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 8 },
+  noticeText: { fontSize: 14, fontWeight: '700', color: '#8A5410' },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18 },
   hero: { alignItems: 'center', marginTop: 4 },
   big: { fontSize: 50, fontWeight: '800', color: colors.brown, letterSpacing: -1 },

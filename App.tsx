@@ -14,8 +14,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AmountSheet } from './src/components/AmountSheet';
 import { BudgetSheet } from './src/components/BudgetSheet';
-import { Celebration } from './src/components/Celebration';
+import { BedtimeRitual } from './src/components/BedtimeRitual';
 import { DayDetail } from './src/components/DayDetail';
+import { FriendsAlbum } from './src/components/FriendsAlbum';
 import { HomeScreen } from './src/components/HomeScreen';
 import { RemindersIntro } from './src/components/RemindersIntro';
 import { StreakSheet } from './src/components/StreakSheet';
@@ -26,11 +27,24 @@ import { askPermission, cancelReminders, onReminderTapped, scheduleReminders } f
 import { activeDays, bandsFor, bestStreak, dayKey, expensesOn, startOfDay, streak, sum } from './src/stats';
 import { learn } from './src/learning';
 import * as store from './src/storage';
+import {
+  applyChillDays,
+  chillDays,
+  chillUsed,
+  foundIds,
+  maybeEarnChill,
+  nextRare,
+  type Visitor,
+  VISITORS,
+  visitorOn,
+  welcomeVisitor,
+} from './src/visitors';
 
 // Opening capy://listen (from a Shortcut, Back Tap, Siri or a reminder) jumps straight to the voice overlay.
 const wantsListen = (url: string | null) => !!url && Linking.parse(url).hostname === 'listen';
 
 type Entry = { category: Category; day?: number };
+type Ritual = { visitor: Visitor; isNew: boolean; chillEarned: boolean; streak: number };
 
 export default function App() {
   const [fontsLoaded] = useFonts({ Nunito_400Regular, Nunito_600SemiBold, Nunito_700Bold, Nunito_800ExtraBold });
@@ -45,7 +59,10 @@ export default function App() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [streakOpen, setStreakOpen] = useState(false);
   const [openDay, setOpenDay] = useState<number | null>(null);
-  const [celebrating, setCelebrating] = useState(false);
+  const [ritual, setRitual] = useState<Ritual | null>(null);
+  const [albumOpen, setAlbumOpen] = useState(false);
+  const [chillList, setChillList] = useState(chillUsed);
+  const [notice, setNotice] = useState<string | null>(null);
   const [askReminders, setAskReminders] = useState(false);
 
   const refresh = useCallback(() => {
@@ -58,11 +75,30 @@ export default function App() {
   const todayList = useMemo(() => expensesOn(expenses, now), [expenses, todayKey]);
   const today = sum(todayList);
   const bands = useMemo(() => bandsFor(todayList), [todayList]);
-  const active = useMemo(() => activeDays(expenses, checkins), [expenses, checkins]);
+  const active = useMemo(() => activeDays(expenses, checkins, chillList), [expenses, checkins, chillList]);
   const currentStreak = streak(active, now);
   const checkedInToday = checkins.includes(todayKey);
   const monthStart = new Date(new Date(now).getFullYear(), new Date(now).getMonth(), 1).getTime();
   const monthTotal = sum(expenses.filter((e) => e.createdAt >= monthStart));
+  const tonightsVisitor = visitorOn(todayKey);
+
+  // If you missed a day, a saved Chill Day quietly keeps your streak alive.
+  useEffect(() => {
+    const used = applyChillDays(activeDays(store.listExpenses(), store.listCheckins(), chillUsed()));
+    if (used > 0) {
+      setChillList(chillUsed());
+      setNotice(used === 1 ? '🍊 A Chill Day saved your streak yesterday' : `🍊 ${used} Chill Days saved your streak`);
+    }
+  }, []);
+
+  function tuckIn() {
+    store.addCheckin(todayKey);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    refresh();
+    const newStreak = streak(activeDays(store.listExpenses(), store.listCheckins(), chillList));
+    const { visitor, isNew } = welcomeVisitor(todayKey, newStreak);
+    setRitual({ visitor, isNew, chillEarned: maybeEarnChill(newStreak), streak: newStreak });
+  }
 
   useEffect(() => {
     Linking.getInitialURL().then((url) => wantsListen(url) && setListening(true));
@@ -97,12 +133,10 @@ export default function App() {
         checkedInToday={checkedInToday}
         onTalk={() => setListening(true)}
         onQuickAdd={(category) => setEntry({ category })}
-        onCheckIn={() => {
-          store.addCheckin(todayKey);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          refresh();
-          setCelebrating(true);
-        }}
+        visitor={tonightsVisitor?.emoji}
+        notice={notice}
+        onDismissNotice={() => setNotice(null)}
+        onCheckIn={tuckIn}
         onOpenSummary={() => setSummaryOpen(true)}
         onOpenStreak={() => setStreakOpen(true)}
         onOpenToday={() => setOpenDay(startOfDay(now))}
@@ -115,7 +149,11 @@ export default function App() {
           streak={currentStreak}
           best={bestStreak(active)}
           checkedInToday={checkedInToday}
+          chillDays={chillDays()}
+          found={foundIds().size}
+          total={VISITORS.length}
           onOpenSummary={() => setSummaryOpen(true)}
+          onOpenAlbum={() => setAlbumOpen(true)}
           onClose={() => setStreakOpen(false)}
         />
       )}
@@ -149,18 +187,28 @@ export default function App() {
         />
       )}
 
-      {celebrating && (
-        <Celebration
+      {ritual && (
+        <BedtimeRitual
+          todayList={todayList}
           today={today}
           budget={budget}
           bands={bands}
-          streak={currentStreak}
+          streak={ritual.streak}
+          visitor={ritual.visitor}
+          isNew={ritual.isNew}
+          found={foundIds().size}
+          total={VISITORS.length}
+          chillEarned={ritual.chillEarned}
+          nextRare={nextRare(ritual.streak)}
+          onOpenAlbum={() => setAlbumOpen(true)}
           onClose={() => {
-            setCelebrating(false);
+            setRitual(null);
             maybeAskReminders();
           }}
         />
       )}
+
+      {albumOpen && <FriendsAlbum found={foundIds()} onClose={() => setAlbumOpen(false)} />}
 
       {askReminders && (
         <RemindersIntro

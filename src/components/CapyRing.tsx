@@ -1,8 +1,8 @@
 // Capy's round face inside a ring that fills with category colours as the day's spending adds up.
 // The face changes expression with how much of the budget is gone, morphing smoothly between them.
 import { useEffect, useId, useRef, useState } from 'react';
-import { Animated } from 'react-native';
-import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { Animated, Easing, Text } from 'react-native';
+import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 
 import { CATEGORY_STYLE } from '../categories';
 import type { Band } from '../stats';
@@ -10,12 +10,15 @@ import { colors } from '../theme';
 import { useReducedMotion } from '../useReducedMotion';
 import { useTween } from '../useTween';
 
-export type Expression = 'calm' | 'alert' | 'concerned' | 'worried' | 'crying' | 'happy';
+export type Expression = 'calm' | 'alert' | 'concerned' | 'worried' | 'thoughtful' | 'happy' | 'sleepy';
 
-/** Picks Capy's face from how much of the budget is spent (and whether you've checked in). */
-export function expressionFor(ratio: number, checkedIn: boolean): Expression {
-  if (checkedIn && ratio <= 1) return 'happy';
-  if (ratio > 1) return 'crying';
+/**
+ * Picks Capy's face from how much of the budget is spent. Once tucked in for the night Capy sleeps.
+ * Going over budget makes Capy thoughtful, never upset: shame only makes people stop looking.
+ */
+export function expressionFor(ratio: number, tuckedIn: boolean): Expression {
+  if (tuckedIn) return 'sleepy';
+  if (ratio > 1) return 'thoughtful';
   if (ratio >= 0.9) return 'worried';
   if (ratio >= 0.7) return 'concerned';
   if (ratio >= 0.4) return 'alert';
@@ -27,23 +30,25 @@ export const EXPRESSION_WORDS: Record<Expression, string> = {
   alert: 'keeping an eye on things',
   concerned: 'a little concerned',
   worried: 'worried',
-  crying: 'in tears',
+  thoughtful: 'thoughtful, tomorrow is a fresh start',
   happy: 'happy',
+  sleepy: 'asleep',
 };
 
 // Every expression is the same handful of numbers, so any face can morph into any other.
 // open: eyes 0 closed .. 1 open · arc: closed-eye curve (-1 droopy .. 1 ^ happy) · size: eye size
 // brow: worry tilt · browOn: brows shown · smile: -1 frown .. 1 smile · mouth: 0 closed .. 1 wide open
-// blush, sweat, tears: 0 .. 1
-type Face = { open: number; arc: number; size: number; brow: number; browOn: number; smile: number; mouth: number; blush: number; sweat: number; tears: number };
+// look: eyes glance down (0 .. 1) · blush, sweat, zzz: 0 .. 1
+type Face = { open: number; arc: number; size: number; brow: number; browOn: number; smile: number; mouth: number; look: number; blush: number; sweat: number; zzz: number };
 
 const FACES: Record<Expression, Face> = {
-  calm: { open: 0, arc: -0.3, size: 1, brow: 0, browOn: 0, smile: 0.35, mouth: 0, blush: 0.85, sweat: 0, tears: 0 },
-  alert: { open: 0.85, arc: 0, size: 1, brow: 0, browOn: 0, smile: 0.25, mouth: 0, blush: 0.7, sweat: 0, tears: 0 },
-  concerned: { open: 0.95, arc: 0, size: 1, brow: 0.55, browOn: 1, smile: -0.35, mouth: 0.12, blush: 0.45, sweat: 0, tears: 0 },
-  worried: { open: 1, arc: 0, size: 1.12, brow: 1, browOn: 1, smile: -0.6, mouth: 0.35, blush: 0.3, sweat: 1, tears: 0 },
-  crying: { open: 0, arc: 0.55, size: 1, brow: 1, browOn: 1, smile: -0.2, mouth: 0.9, blush: 0.6, sweat: 0, tears: 1 },
-  happy: { open: 0, arc: 1, size: 1, brow: 0, browOn: 0, smile: 1, mouth: 0.55, blush: 1, sweat: 0, tears: 0 },
+  calm: { open: 0, arc: -0.3, size: 1, brow: 0, browOn: 0, smile: 0.35, mouth: 0, look: 0, blush: 0.85, sweat: 0, zzz: 0 },
+  alert: { open: 0.85, arc: 0, size: 1, brow: 0, browOn: 0, smile: 0.25, mouth: 0, look: 0, blush: 0.7, sweat: 0, zzz: 0 },
+  concerned: { open: 0.95, arc: 0, size: 1, brow: 0.55, browOn: 1, smile: -0.35, mouth: 0.12, look: 0, blush: 0.45, sweat: 0, zzz: 0 },
+  worried: { open: 1, arc: 0, size: 1.12, brow: 1, browOn: 1, smile: -0.6, mouth: 0.35, look: 0, blush: 0.3, sweat: 1, zzz: 0 },
+  thoughtful: { open: 0.75, arc: 0, size: 1, brow: 0.35, browOn: 1, smile: 0, mouth: 0.18, look: 1, blush: 0.6, sweat: 0, zzz: 0 },
+  happy: { open: 0, arc: 1, size: 1, brow: 0, browOn: 0, smile: 1, mouth: 0.55, look: 0, blush: 1, sweat: 0, zzz: 0 },
+  sleepy: { open: 0, arc: -0.55, size: 1, brow: 0, browOn: 0, smile: 0.2, mouth: 0, look: 0, blush: 0.95, sweat: 0, zzz: 1 },
 };
 
 const S = 240;
@@ -65,9 +70,11 @@ type Props = {
   capacity: number;
   expression: Expression;
   size: number;
+  /** Tonight's visitor (an emoji) sitting on Capy's head. */
+  visitor?: string;
 };
 
-export function CapyRing({ bands, capacity, expression, size }: Props) {
+export function CapyRing({ bands, capacity, expression, size, visitor }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const reduce = useReducedMotion();
   const face = useTween(FACES[expression]);
@@ -89,6 +96,29 @@ export function CapyRing({ bands, capacity, expression, size }: Props) {
       Animated.spring(pop, { toValue: 1, speed: 14, bounciness: 12, useNativeDriver: true }),
     ]).start();
   }, [expression]);
+
+  // A visitor drops onto Capy's head, then bobs gently while it sits there.
+  const arrive = useRef(new Animated.Value(visitor ? 1 : 0)).current;
+  const bob = useRef(new Animated.Value(0)).current;
+  const lastVisitor = useRef(visitor);
+  useEffect(() => {
+    if (visitor && visitor !== lastVisitor.current) {
+      arrive.setValue(reduce ? 1 : 0);
+      if (!reduce) Animated.spring(arrive, { toValue: 1, speed: 9, bounciness: 14, useNativeDriver: true }).start();
+    }
+    lastVisitor.current = visitor;
+  }, [visitor]);
+  useEffect(() => {
+    if (reduce || !visitor) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bob, { toValue: -3, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduce, visitor]);
 
   // Blink now and then while the eyes are open.
   const [blink, setBlink] = useState(1);
@@ -136,8 +166,8 @@ export function CapyRing({ bands, capacity, expression, size }: Props) {
         opacity={Math.max(0, 1 - open * 2.2)}
       />
       {/* open eye */}
-      <Ellipse cx={x} cy={100} rx={7 * face.size} ry={Math.max(0.01, eyeRy)} fill={ink} opacity={Math.min(1, open * 2.2)} />
-      <Circle cx={x + 2.5 * face.size} cy={96 - 2 * face.size} r={2.4 * face.size} fill="#fff" opacity={Math.max(0, open * 2 - 1)} />
+      <Ellipse cx={x} cy={100 + face.look * 4} rx={7 * face.size} ry={Math.max(0.01, eyeRy)} fill={ink} opacity={Math.min(1, open * 2.2)} />
+      <Circle cx={x + 2.5 * face.size} cy={96 + face.look * 4 - 2 * face.size} r={2.4 * face.size} fill="#fff" opacity={Math.max(0, open * 2 - 1)} />
       {/* brow: the inner end lifts as Capy worries */}
       <Path
         d={`M ${x - 12 * mirror} ${80 + face.brow * 3} L ${x + 12 * mirror} ${80 - face.brow * 7}`}
@@ -147,7 +177,6 @@ export function CapyRing({ bands, capacity, expression, size }: Props) {
         opacity={face.browOn}
       />
       {/* tear stream */}
-      <Rect x={x - 5} y={104} width={10} height={44 * face.tears} rx={5} fill="#8fd0f0" opacity={face.tears * 0.9} />
     </G>
   );
 
@@ -226,7 +255,37 @@ export function CapyRing({ bands, capacity, expression, size }: Props) {
           opacity={face.sweat}
           transform={`translate(0 ${(1 - face.sweat) * -6})`}
         />
+        {/* sleeping z's */}
+        <G opacity={face.zzz}>
+          <SvgText x={178} y={70} fontSize={20} fontWeight="bold" fill={colors.brown}>
+            z
+          </SvgText>
+          <SvgText x={194} y={52} fontSize={14} fontWeight="bold" fill={colors.brown}>
+            z
+          </SvgText>
+        </G>
       </Svg>
+
+      {visitor && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: size * (8 / 240) - size * 0.13,
+            alignItems: 'center',
+            opacity: arrive,
+            transform: [
+              { translateY: Animated.add(arrive.interpolate({ inputRange: [0, 1], outputRange: [-size * 0.35, 0] }), bob) },
+              { scale: arrive.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
+            ],
+          }}
+          accessibilityElementsHidden
+        >
+          <Text style={{ fontSize: size * 0.17 }}>{visitor}</Text>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 }
