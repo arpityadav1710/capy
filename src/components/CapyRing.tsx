@@ -1,12 +1,13 @@
-// Capy's round face inside a ring that fills with category colours as the day's spending adds up.
-// The face changes expression with how much of the budget is gone, morphing smoothly between them.
-import { useEffect, useId, useRef, useState } from 'react';
-import { Animated, Easing, Text } from 'react-native';
-import Svg, { Circle, Defs, Ellipse, G, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
+// Painted Capy inside a ring that fills with category colours as the day's spending adds up.
+// Capy's pose follows how much of the budget is gone, cross-fading smoothly between paintings.
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Image, View } from 'react-native';
+import Svg, { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 
+import { CAPY_ART, type CapyPose } from '../art';
 import { CATEGORY_STYLE } from '../categories';
 import type { Band } from '../stats';
-import { colors } from '../theme';
+import { colors, curves, fonts } from '../theme';
 import { useReducedMotion } from '../useReducedMotion';
 import { useTween } from '../useTween';
 import type { Visitor } from '../visitors';
@@ -15,7 +16,7 @@ import { VisitorArt } from './VisitorArt';
 export type Expression = 'calm' | 'alert' | 'concerned' | 'worried' | 'thoughtful' | 'happy' | 'sleepy';
 
 /**
- * Picks Capy's face from how much of the budget is spent. Once tucked in for the night Capy sleeps.
+ * Picks Capy's mood from how much of the budget is spent. Once tucked in for the night Capy sleeps.
  * Going over budget makes Capy thoughtful, never upset: shame only makes people stop looking.
  */
 export function expressionFor(ratio: number, tuckedIn: boolean): Expression {
@@ -37,28 +38,29 @@ export const EXPRESSION_WORDS: Record<Expression, string> = {
   sleepy: 'asleep',
 };
 
-// Every expression is the same handful of numbers, so any face can morph into any other.
-// open: eyes 0 closed .. 1 open · arc: closed-eye curve (-1 droopy .. 1 ^ happy) · size: eye size
-// brow: worry tilt · browOn: brows shown · smile: -1 frown .. 1 smile · mouth: 0 closed .. 1 wide open
-// look: eyes glance down (0 .. 1) · blush, sweat, zzz: 0 .. 1
-type Face = { open: number; arc: number; size: number; brow: number; browOn: number; smile: number; mouth: number; look: number; blush: number; sweat: number; zzz: number };
-
-const FACES: Record<Expression, Face> = {
-  calm: { open: 0, arc: -0.3, size: 1, brow: 0, browOn: 0, smile: 0.35, mouth: 0, look: 0, blush: 0.85, sweat: 0, zzz: 0 },
-  alert: { open: 0.85, arc: 0, size: 1, brow: 0, browOn: 0, smile: 0.25, mouth: 0, look: 0, blush: 0.7, sweat: 0, zzz: 0 },
-  concerned: { open: 0.95, arc: 0, size: 1, brow: 0.55, browOn: 1, smile: -0.35, mouth: 0.12, look: 0, blush: 0.45, sweat: 0, zzz: 0 },
-  worried: { open: 1, arc: 0, size: 1.12, brow: 1, browOn: 1, smile: -0.6, mouth: 0.35, look: 0, blush: 0.3, sweat: 1, zzz: 0 },
-  thoughtful: { open: 0.75, arc: 0, size: 1, brow: 0.35, browOn: 1, smile: 0, mouth: 0.18, look: 1, blush: 0.6, sweat: 0, zzz: 0 },
-  happy: { open: 0, arc: 1, size: 1, brow: 0, browOn: 0, smile: 1, mouth: 0.55, look: 0, blush: 1, sweat: 0, zzz: 0 },
-  sleepy: { open: 0, arc: -0.55, size: 1, brow: 0, browOn: 0, smile: 0.2, mouth: 0, look: 0, blush: 0.95, sweat: 0, zzz: 1 },
+// Which painting shows for each mood. Worried adds a sweat drop, sleepy adds z's.
+const POSE: Record<Expression, CapyPose> = {
+  calm: 'sitting',
+  alert: 'sitting',
+  concerned: 'thoughtful',
+  worried: 'thoughtful',
+  thoughtful: 'thoughtful',
+  happy: 'happy',
+  sleepy: 'sleepy',
 };
+const POSES: CapyPose[] = ['sitting', 'thoughtful', 'happy', 'sleepy'];
 
 const S = 240;
 const C = S / 2;
 const RING_R = 108;
 const RING_W = 14;
-const FACE_R = 90;
+const INNER_R = 92;
 const GAP_DEG = 7;
+// Capy's painting as a share of the inner circle, and how far down it sits.
+const ART = 0.8;
+const ART_BOTTOM = 0.98;
+
+const ease = Easing.bezier(...curves.out);
 
 const point = (deg: number, r = RING_R) => {
   const rad = ((deg - 90) * Math.PI) / 180;
@@ -77,14 +79,22 @@ type Props = {
 };
 
 export function CapyRing({ bands, capacity, expression, size, visitor }: Props) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const reduce = useReducedMotion();
-  const face = useTween(FACES[expression]);
   const total = bands.reduce((s, b) => s + b.amount, 0);
   const over = capacity > 0 && total > capacity;
   const fill = useTween({ p: capacity > 0 ? Math.min(1, total / capacity) : 0 }, 600).p;
+  const pose = POSE[expression];
+  const extras = useTween({ sweat: expression === 'worried' ? 1 : 0, zzz: expression === 'sleepy' ? 1 : 0 });
 
-  // A tiny squash on every expression change reads as Capy reacting, not just swapping faces.
+  // Each painting has its own opacity; changing mood cross-fades to the new one.
+  const shown = useRef(Object.fromEntries(POSES.map((p) => [p, new Animated.Value(p === pose ? 1 : 0)])) as Record<CapyPose, Animated.Value>).current;
+  useEffect(() => {
+    Animated.parallel(
+      POSES.map((p) => Animated.timing(shown[p], { toValue: p === pose ? 1 : 0, duration: reduce ? 0 : 420, easing: ease, useNativeDriver: true })),
+    ).start();
+  }, [pose, reduce]);
+
+  // A tiny squash on every mood change reads as Capy reacting, not just swapping pictures.
   const pop = useRef(new Animated.Value(1)).current;
   const first = useRef(true);
   useEffect(() => {
@@ -94,10 +104,24 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
     }
     if (reduce) return;
     Animated.sequence([
-      Animated.timing(pop, { toValue: 0.94, duration: 110, useNativeDriver: true }),
+      Animated.timing(pop, { toValue: 0.95, duration: 110, easing: ease, useNativeDriver: true }),
       Animated.spring(pop, { toValue: 1, speed: 14, bounciness: 12, useNativeDriver: true }),
     ]).start();
   }, [expression]);
+
+  // Capy breathes gently while awake or asleep.
+  const breathe = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduce) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathe, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 0, duration: 2200, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduce]);
 
   // A visitor drops onto Capy's head, then bobs gently while it sits there.
   const arrive = useRef(new Animated.Value(visitor ? 1 : 0)).current;
@@ -122,24 +146,6 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
     return () => loop.stop();
   }, [reduce, visitor?.id]);
 
-  // Blink now and then while the eyes are open.
-  const [blink, setBlink] = useState(1);
-  useEffect(() => {
-    if (reduce) return;
-    let t: ReturnType<typeof setTimeout>;
-    const loop = () => {
-      t = setTimeout(() => {
-        setBlink(0.08);
-        t = setTimeout(() => {
-          setBlink(1);
-          loop();
-        }, 130);
-      }, 2800 + Math.random() * 2600);
-    };
-    loop();
-    return () => clearTimeout(t);
-  }, [reduce]);
-
   // Ring segments, in the order the categories were first spent today.
   const sweep = fill * 360;
   const gaps = bands.length > 1 ? GAP_DEG : 0;
@@ -152,57 +158,18 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
     return seg;
   });
 
-  const open = face.open * blink;
-  const eyeRy = 9 * face.size * open;
-  const ink = colors.ink;
+  // Layout of the painting inside the inner circle, in points.
+  const unit = size / S;
+  const inner = INNER_R * 2 * unit;
+  const innerTop = (C - INNER_R) * unit;
+  const art = inner * ART;
+  const artTop = inner * ART_BOTTOM - art;
+  const headTop = innerTop + artTop + art * 0.06;
+  const v = size * 0.27;
 
-  const eye = (x: number, mirror: 1 | -1) => (
-    <G key={x}>
-      {/* closed eye: a curve that fades out as the eye opens */}
-      <Path
-        d={`M ${x - 13} ${100} Q ${x} ${100 - face.arc * 12} ${x + 13} ${100}`}
-        stroke={ink}
-        strokeWidth={5.5}
-        strokeLinecap="round"
-        fill="none"
-        opacity={Math.max(0, 1 - open * 2.2)}
-      />
-      {/* open eye */}
-      <Ellipse cx={x} cy={100 + face.look * 4} rx={7 * face.size} ry={Math.max(0.01, eyeRy)} fill={ink} opacity={Math.min(1, open * 2.2)} />
-      <Circle cx={x + 2.5 * face.size} cy={96 + face.look * 4 - 2 * face.size} r={2.4 * face.size} fill="#fff" opacity={Math.max(0, open * 2 - 1)} />
-      {/* brow: the inner end lifts as Capy worries */}
-      <Path
-        d={`M ${x - 12 * mirror} ${80 + face.brow * 3} L ${x + 12 * mirror} ${80 - face.brow * 7}`}
-        stroke={ink}
-        strokeWidth={4.5}
-        strokeLinecap="round"
-        opacity={face.browOn}
-      />
-      {/* tear stream */}
-    </G>
-  );
-
-  const mouthY = 158;
   return (
     <Animated.View style={{ width: size, height: size, transform: [{ scale: pop }] }}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${S} ${S}`}>
-        <Defs>
-          <RadialGradient id={`fur${uid}`} cx="50%" cy="46%" r="54%">
-            <Stop offset="0" stopColor="#c4976f" />
-            <Stop offset="0.7" stopColor="#d4ac86" />
-            <Stop offset="1" stopColor="#e3c4a2" />
-          </RadialGradient>
-          <RadialGradient id={`cheek${uid}`} cx="50%" cy="50%" r="50%">
-            <Stop offset="0" stopColor={colors.cheek} stopOpacity={0.95} />
-            <Stop offset="1" stopColor={colors.cheek} stopOpacity={0} />
-          </RadialGradient>
-          <RadialGradient id={`nose${uid}`} cx="50%" cy="45%" r="55%">
-            <Stop offset="0" stopColor="#8f5d3d" />
-            <Stop offset="0.85" stopColor="#7d4f33" />
-            <Stop offset="1" stopColor="#7d4f33" stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-
+      <Svg width="100%" height="100%" viewBox={`0 0 ${S} ${S}`} style={{ position: 'absolute' }}>
         {/* ring track, then the coloured spend segments */}
         <Circle cx={C} cy={C} r={RING_R} stroke={over ? '#F3CFC9' : colors.chip} strokeWidth={RING_W} fill="none" />
         {segments.map(
@@ -218,51 +185,43 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
               />
             ),
         )}
+        <Circle cx={C} cy={C} r={INNER_R} fill="#F7EDE1" />
+      </Svg>
 
-        {/* face */}
-        <Circle cx={C} cy={C} r={FACE_R} fill={`url(#fur${uid})`} />
-        <Circle cx={74} cy={128} r={22} fill={`url(#cheek${uid})`} opacity={face.blush} />
-        <Circle cx={166} cy={128} r={22} fill={`url(#cheek${uid})`} opacity={face.blush} />
-        {eye(84, 1)}
-        {eye(156, -1)}
+      {/* the painting, clipped to the inner circle */}
+      <View
+        style={{ position: 'absolute', left: innerTop, top: innerTop, width: inner, height: inner, borderRadius: inner / 2, overflow: 'hidden' }}
+      >
+        <Animated.View
+          style={{
+            position: 'absolute',
+            left: (inner - art) / 2,
+            top: artTop,
+            width: art,
+            height: art,
+            transform: [{ scaleY: breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.015] }) }, { translateY: breathe.interpolate({ inputRange: [0, 1], outputRange: [0, -art * 0.006] }) }],
+          }}
+        >
+          {POSES.map((p) => (
+            <Animated.Image
+              key={p}
+              source={CAPY_ART[p]}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+              style={{ position: 'absolute', width: art, height: art, opacity: shown[p] }}
+            />
+          ))}
+        </Animated.View>
+      </View>
 
-        {/* mouth: a smile line that opens into a pink mouth */}
-        <Path
-          d={`M ${108} ${mouthY - 4} Q ${C} ${mouthY - 4 + face.smile * 9} ${132} ${mouthY - 4}`}
-          stroke="#5a3a28"
-          strokeWidth={3.5}
-          strokeLinecap="round"
-          fill="none"
-          opacity={Math.max(0, 1 - face.mouth * 3)}
-        />
-        <Ellipse
-          cx={C}
-          cy={mouthY + 2}
-          rx={8 + face.mouth * 6}
-          ry={Math.max(0.01, face.mouth * 11)}
-          fill="#e48a83"
-          stroke="#5a3a28"
-          strokeWidth={3}
-          opacity={Math.min(1, face.mouth * 3)}
-        />
-
-        {/* nose with the capybara Y */}
-        <Ellipse cx={C} cy={134} rx={22} ry={19} fill={`url(#nose${uid})`} />
-        <Path d="M 111 129 L 120 136 L 129 129 M 120 136 L 120 145" stroke="#3f281d" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-
-        {/* sweat drop */}
-        <Path
-          d="M 186 66 Q 194 80 186 86 Q 178 80 186 66 Z"
-          fill="#8fd0f0"
-          opacity={face.sweat}
-          transform={`translate(0 ${(1 - face.sweat) * -6})`}
-        />
-        {/* sleeping z's */}
-        <G opacity={face.zzz}>
-          <SvgText x={178} y={70} fontSize={20} fontWeight="bold" fill={colors.brown}>
+      {/* sweat drop and sleepy z's on top */}
+      <Svg width="100%" height="100%" viewBox={`0 0 ${S} ${S}`} style={{ position: 'absolute' }} pointerEvents="none">
+        <Path d="M 168 62 Q 176 76 168 82 Q 160 76 168 62 Z" fill="#8fd0f0" opacity={extras.sweat} transform={`translate(0 ${(1 - extras.sweat) * -6})`} />
+        <G opacity={extras.zzz}>
+          <SvgText x={178} y={104} fontSize={20} fontFamily={fonts.heavy} fill={colors.brown}>
             z
           </SvgText>
-          <SvgText x={194} y={52} fontSize={14} fontWeight="bold" fill={colors.brown}>
+          <SvgText x={192} y={86} fontSize={14} fontFamily={fonts.heavy} fill={colors.brown}>
             z
           </SvgText>
         </G>
@@ -273,10 +232,10 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
           pointerEvents="none"
           style={{
             position: 'absolute',
-            left: 0,
-            right: 0,
-            top: size * (30 / 240) - size * 0.25,
-            alignItems: 'center',
+            left: (size - v) / 2,
+            top: headTop - v * 0.9,
+            width: v,
+            height: v,
             opacity: arrive,
             transform: [
               { translateY: Animated.add(arrive.interpolate({ inputRange: [0, 1], outputRange: [-size * 0.35, 0] }), bob) },
@@ -285,7 +244,7 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
           }}
           accessibilityElementsHidden
         >
-          <VisitorArt visitor={visitor} size={size * 0.27} />
+          <VisitorArt visitor={visitor} size={v} />
         </Animated.View>
       )}
     </Animated.View>

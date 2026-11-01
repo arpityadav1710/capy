@@ -91,6 +91,14 @@ export default function App() {
     }
   }, []);
 
+  // Tucked in before visitors existed (or on another build)? Tonight's visitor still arrives.
+  useEffect(() => {
+    if (!store.listCheckins().includes(todayKey) || visitorOn(todayKey)) return;
+    const s = streak(activeDays(store.listExpenses(), store.listCheckins(), chillUsed()));
+    const { visitor, isNew } = welcomeVisitor(todayKey, s);
+    setRitual({ visitor, isNew, chillEarned: maybeEarnChill(s), streak: s });
+  }, []);
+
   function tuckIn() {
     store.addCheckin(todayKey);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
