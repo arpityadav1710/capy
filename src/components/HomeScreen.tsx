@@ -9,6 +9,7 @@ import { CATEGORY_STYLE } from '../categories';
 import { CATEGORIES, type Category, formatINR } from '../parser';
 import { type Band } from '../stats';
 import { colors } from '../theme';
+import type { Visitor } from '../visitors';
 import { CapyRing, EXPRESSION_WORDS, expressionFor } from './CapyRing';
 import { Pill, PressableScale, RoundButton, Text } from './ui';
 
@@ -26,7 +27,7 @@ type Props = {
   onOpenSummary: () => void;
   onOpenStreak: () => void;
   /** Tonight's visitor sitting on Capy's head, once tucked in. */
-  visitor?: string;
+  visitor?: Visitor;
   /** A one-off message, e.g. a Chill Day saved your streak. */
   notice?: string | null;
   onDismissNotice: () => void;

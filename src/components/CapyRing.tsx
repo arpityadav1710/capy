@@ -9,6 +9,8 @@ import type { Band } from '../stats';
 import { colors } from '../theme';
 import { useReducedMotion } from '../useReducedMotion';
 import { useTween } from '../useTween';
+import type { Visitor } from '../visitors';
+import { VisitorArt } from './VisitorArt';
 
 export type Expression = 'calm' | 'alert' | 'concerned' | 'worried' | 'thoughtful' | 'happy' | 'sleepy';
 
@@ -70,8 +72,8 @@ type Props = {
   capacity: number;
   expression: Expression;
   size: number;
-  /** Tonight's visitor (an emoji) sitting on Capy's head. */
-  visitor?: string;
+  /** Tonight's visitor sitting on Capy's head. */
+  visitor?: Visitor;
 };
 
 export function CapyRing({ bands, capacity, expression, size, visitor }: Props) {
@@ -100,14 +102,14 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
   // A visitor drops onto Capy's head, then bobs gently while it sits there.
   const arrive = useRef(new Animated.Value(visitor ? 1 : 0)).current;
   const bob = useRef(new Animated.Value(0)).current;
-  const lastVisitor = useRef(visitor);
+  const lastVisitor = useRef(visitor?.id);
   useEffect(() => {
-    if (visitor && visitor !== lastVisitor.current) {
+    if (visitor && visitor.id !== lastVisitor.current) {
       arrive.setValue(reduce ? 1 : 0);
       if (!reduce) Animated.spring(arrive, { toValue: 1, speed: 9, bounciness: 14, useNativeDriver: true }).start();
     }
-    lastVisitor.current = visitor;
-  }, [visitor]);
+    lastVisitor.current = visitor?.id;
+  }, [visitor?.id]);
   useEffect(() => {
     if (reduce || !visitor) return;
     const loop = Animated.loop(
@@ -118,7 +120,7 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
     );
     loop.start();
     return () => loop.stop();
-  }, [reduce, visitor]);
+  }, [reduce, visitor?.id]);
 
   // Blink now and then while the eyes are open.
   const [blink, setBlink] = useState(1);
@@ -273,7 +275,7 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
             position: 'absolute',
             left: 0,
             right: 0,
-            top: size * (8 / 240) - size * 0.13,
+            top: size * (30 / 240) - size * 0.25,
             alignItems: 'center',
             opacity: arrive,
             transform: [
@@ -283,7 +285,7 @@ export function CapyRing({ bands, capacity, expression, size, visitor }: Props) 
           }}
           accessibilityElementsHidden
         >
-          <Text style={{ fontSize: size * 0.17 }}>{visitor}</Text>
+          <VisitorArt visitor={visitor} size={size * 0.27} />
         </Animated.View>
       )}
     </Animated.View>

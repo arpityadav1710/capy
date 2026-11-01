@@ -133,7 +133,7 @@ export default function App() {
         checkedInToday={checkedInToday}
         onTalk={() => setListening(true)}
         onQuickAdd={(category) => setEntry({ category })}
-        visitor={tonightsVisitor?.emoji}
+        visitor={tonightsVisitor ?? undefined}
         notice={notice}
         onDismissNotice={() => setNotice(null)}
         onCheckIn={tuckIn}

@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { VISITOR_ART } from '../art';
 import { colors } from '../theme';
 import { VISITORS, type Visitor } from '../visitors';
 import { Screen, Text } from './ui';
+import { VisitorArt } from './VisitorArt';
 
 type Props = { found: Set<string>; onClose: () => void };
 
@@ -27,7 +29,7 @@ export function FriendsAlbum({ found, onClose }: Props) {
         <View style={styles.featured} accessible accessibilityLabel={picked ? `${picked.name}. ${picked.story}` : 'No friends yet'}>
           {picked ? (
             <>
-              <Text style={styles.featuredEmoji}>{picked.emoji}</Text>
+              <VisitorArt visitor={picked} size={72} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.featuredName}>{picked.name}</Text>
                 <Text style={styles.featuredStory}>{picked.story}</Text>
@@ -50,7 +52,11 @@ export function FriendsAlbum({ found, onClose }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel={isFound ? v.name : v.rareAt ? `Rare friend, visits on a ${v.rareAt}-day streak` : 'Not met yet'}
               >
-                <Text style={[styles.tileEmoji, !isFound && styles.hidden]}>{isFound ? v.emoji : '?'}</Text>
+                {isFound || VISITOR_ART[v.id] ? (
+                  <VisitorArt visitor={v} size={48} silhouette={!isFound} />
+                ) : (
+                  <Text style={styles.hidden}>?</Text>
+                )}
                 <Text style={styles.tileLabel} numberOfLines={1}>
                   {isFound ? v.name.split(' ')[0] : v.rareAt ? `${v.rareAt} days` : ''}
                 </Text>
@@ -67,7 +73,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: '800', color: colors.brown, textAlign: 'center' },
   sub: { fontSize: 14, color: colors.muted, textAlign: 'center', marginTop: 4, marginBottom: 18, paddingHorizontal: 20, lineHeight: 20 },
   featured: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: colors.cream, borderRadius: 24, padding: 18, marginBottom: 18, minHeight: 92 },
-  featuredEmoji: { fontSize: 46 },
   featuredName: { fontSize: 18, fontWeight: '800', color: colors.text },
   featuredStory: { fontSize: 15, color: colors.muted, marginTop: 2, lineHeight: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between' },
@@ -75,7 +80,6 @@ const styles = StyleSheet.create({
   tileFound: { backgroundColor: colors.cream },
   tileLocked: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.line, borderStyle: 'dashed' },
   tilePicked: { borderWidth: 2, borderColor: colors.brown, borderStyle: 'solid' },
-  tileEmoji: { fontSize: 34 },
   hidden: { fontSize: 24, fontWeight: '800', color: colors.line },
   tileLabel: { fontSize: 12, fontWeight: '700', color: colors.muted },
 });

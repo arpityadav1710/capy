@@ -11,7 +11,8 @@ import { curves } from '../theme';
 import type { Expense } from '../types';
 import { useReducedMotion } from '../useReducedMotion';
 import type { Visitor } from '../visitors';
-import { CapyRing } from './CapyRing';
+import { CapyScene } from './CapyScene';
+import { VisitorArt } from './VisitorArt';
 import { Pill, Text } from './ui';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -127,24 +128,21 @@ export function BedtimeRitual(p: Props) {
         </Animated.View>
 
         <Animated.View style={[styles.capy, enter(2)]} accessible accessibilityLabel={`Capy is asleep with ${p.visitor.name} on its head`}>
-          <CapyRing
-            bands={p.bands}
-            capacity={p.budget ?? 1000}
-            expression="sleepy"
-            size={Math.min(SW * 0.62, 260)}
-            visitor={visitorShown ? p.visitor.emoji : undefined}
-          />
+          <CapyScene pose="sleepy" size={Math.min(SW * 0.6, 250)} visitor={visitorShown ? p.visitor : undefined} />
         </Animated.View>
 
-        <Animated.View style={[styles.card, enter(3)]} accessible>
-          <Text style={styles.cardTitle}>
-            {p.visitor.emoji} {p.visitor.name} {p.isNew ? 'came to visit!' : 'is back to say hi'}
-          </Text>
-          <Text style={styles.cardBody}>{p.visitor.story}</Text>
-          <Text style={styles.cardMeta}>
-            {p.isNew ? 'New friend · ' : ''}
-            {p.found} of {p.total} friends found
-          </Text>
+        <Animated.View style={[styles.card, styles.cardRow, enter(3)]} accessible>
+          <VisitorArt visitor={p.visitor} size={56} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>
+              {p.visitor.name} {p.isNew ? 'came to visit!' : 'is back to say hi'}
+            </Text>
+            <Text style={styles.cardBody}>{p.visitor.story}</Text>
+            <Text style={styles.cardMeta}>
+              {p.visitor.rareAt ? 'Rare friend · ' : p.isNew ? 'New friend · ' : ''}
+              {p.found} of {p.total} friends found
+            </Text>
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.chips, enter(4)]}>
@@ -182,6 +180,7 @@ const styles = StyleSheet.create({
   verdict: { fontSize: 15, color: NIGHT_MUTED, textAlign: 'center', marginTop: 4 },
   capy: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   card: { backgroundColor: 'rgba(255,246,236,0.12)', borderRadius: 22, padding: 16, borderWidth: 1, borderColor: 'rgba(255,246,236,0.18)' },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardTitle: { fontSize: 17, fontWeight: '800', color: NIGHT },
   cardBody: { fontSize: 15, color: NIGHT_MUTED, marginTop: 4, lineHeight: 20 },
   cardMeta: { fontSize: 13, fontWeight: '700', color: '#F3C98B', marginTop: 8 },
